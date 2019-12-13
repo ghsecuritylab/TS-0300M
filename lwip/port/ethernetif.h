@@ -42,13 +42,20 @@
 #define ETHERNETIF_H
 
 #include "lwip/err.h"
-#include "fsl_enet.h"
+#include "hal_phy.h"
 
 #include "lwip/netif.h"
 
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
+/* ENET port type and num */
+#define ENET_PORT_NUM				(2)					//eth0(ENET),eht1(ENET2)
+
+typedef enum {
+	eth0 = 0,eth1,
+}enet_port_type;
+ 
 #ifndef ENET_RXBD_NUM
     #define ENET_RXBD_NUM (5)
 #endif
@@ -99,46 +106,33 @@
  */
 typedef struct ethernetif_config
 {
-    uint32_t phyAddress;
+	enet_port_type type;
+//    uint32_t phyAddress;
+	HAL_PhyType_EN drivType;
     clock_name_t clockName;
     uint8_t macAddress[NETIF_MAX_HWADDR_LEN];
 	uint8_t flag;
+	bool enBrocastRec;
 } ethernetif_config_t;
+
 
 #if defined(__cplusplus)
 extern "C" {
 #endif /* __cplusplus */
 
-/**
- * This function should be passed as a parameter to netif_add()
- * if you initialize the first ENET interface.
- */
-err_t ethernetif0_init(struct netif *netif);
 
-#if (defined(FSL_FEATURE_SOC_ENET_COUNT) && (FSL_FEATURE_SOC_ENET_COUNT > 1)) \
- || (defined(FSL_FEATURE_SOC_LPC_ENET_COUNT) && (FSL_FEATURE_SOC_LPC_ENET_COUNT > 1))
-/**
- * This function should be passed as a parameter to netif_add()
- * if you initialize the second ENET interface.
- */
-err_t ethernetif1_init(struct netif *netif);
-#endif /* FSL_FEATURE_SOC_*_ENET_COUNT */
-
-/**
- * This function should be called when a packet is ready to be read
- * from the interface. 
- * It is used by bare-metal applications.
- *
- * @param netif the lwip network interface structure for this ethernetif
- */
+err_t ethernetif_init(struct netif *netif);
 void ethernetif_input( struct netif *netif);
+bool ethernet_link_check(enet_port_type type);
+bool ethernet_auto_negotiation_check(enet_port_type type);
+void ethernet_irq_ctrl(enet_port_type type,bool enable);
 
 
-bool enet_link(uint32_t phyAddress);
+//bool enet_link(uint32_t phyAddress);
 
-bool enet_phy_init(const ethernetif_config_t *ethernetifConfig);
+//bool enet_phy_init(const ethernetif_config_t *ethernetifConfig);
 
-bool enet_phy_check_auto_negotiation(uint32_t phyAddress);
+//bool enet_phy_check_auto_negotiation(uint32_t phyAddress);
 #if defined(__cplusplus)
 }
 #endif /* __cplusplus */

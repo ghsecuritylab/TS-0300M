@@ -127,6 +127,9 @@ void USB_HostMsdCallback(void *param, uint8_t *data, uint32_t dataLength, usb_st
     controlStatus = status;
 }
 
+
+
+
 static void USB_HostMsdFatfsTestDone(void)
 {
     usb_echo("............................test done......................\r\n");
@@ -912,6 +915,7 @@ void USB_HostMsdTask(void *arg)
     }
 }
 
+
 usb_status_t USB_HostMsdEvent(usb_device_handle deviceHandle,
                               usb_host_configuration_handle configurationHandle,
                               uint32_t eventCode)
@@ -978,11 +982,14 @@ usb_status_t USB_HostMsdEvent(usb_device_handle deviceHandle,
                 {
                     g_MsdFatfsInstance.deviceState = kStatus_DEV_Attached;
                     USB_HostHelperGetPeripheralInformation(deviceHandle, kUSB_HostGetDevicePID, &infoValue);
-                    usb_echo("USB:mass storage device attached:pid=0x%x", infoValue);
                     USB_HostHelperGetPeripheralInformation(deviceHandle, kUSB_HostGetDeviceVID, &infoValue);
-                    usb_echo(" vid=0x%x ", infoValue);
                     USB_HostHelperGetPeripheralInformation(deviceHandle, kUSB_HostGetDeviceAddress, &infoValue);
-                    usb_echo(" address=%d\r\n", infoValue);
+                    
+					#ifdef HOST_ECHO
+                    usb_echo("USB:mass storage device attached:pid=0x%x", infoValue);
+					usb_echo(" address=%d\r\n", infoValue);
+					usb_echo(" vid=0x%x ", infoValue);
+					#endif
 
                     /**
                     *	从USB_HostMsdTask移植相关代码段
@@ -1033,4 +1040,5 @@ usb_status_t USB_HostMsdEvent(usb_device_handle deviceHandle,
     }
     return status;
 }
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  
+
+

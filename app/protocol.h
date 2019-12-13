@@ -5,7 +5,7 @@
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
- 
+
 /*******************************************************************************
  ***                        全数字会议系统通讯协议                           ***
  *******************************************************************************/
@@ -14,8 +14,9 @@
 #define UNIT_BROADCAST_ID							(0xFFF1)			//仅对单元机广播消息
 #define EX_HOST_BROADCAST_ID						(0xFFF2)			//仅对扩展主机广播消息
 #define TRANS_BROADCAST_ID							(0xFFF3)			//仅对议员机广播消息
-#define MODE_BROADCAST_ID							(0xFFE1)			//广播当前主机模式
+#define MODE_BROADCAST_ID							(0xFFE1)			//广播当前主机话筒模式（有线单元）
 #define NUM_BROADCAST_ID							(0xFFE2)			//广播会场总数量、当前开话筒数量
+#define WIFI_MODE_BROADCAST_ID						(0xFFEA)			//广播当前主机话筒模式（WIFI单元）
 #define APPLY_OPEN_MIC_ID							(0xFFC1)			//向主席机广播当前申请开话筒ID
 #define REVOKE_APPLY_ID								(0xFFC2)			//向主席机广播当前撤销申请话筒ID
 
@@ -23,7 +24,7 @@
 #define RESULT_MSG_ID(_id)							(0xFFD0 + _id)		 //结果消息ID
 #define RES_SIGN_NUM								(0x01)				 //签到总人数
 #define RES_OPT_NUM(n)								(0x01 + n)			 //第n项选项人数
- 
+
 /************ 类型(type) ************/
 #define BASIC_MSG									(0x80)				//基本消息
 #define POLLING_MSG									(0x81)				//轮询消息
@@ -45,7 +46,7 @@
 #define NAMEPLATE_UPDATE							(0x9D)				//PC单播更新电子铭牌（旧电子铭牌协议，用于兼容）
 #define HOST_REPLY_PC								(0x9E)				//主机回复PC发送成功
 
- 
+
 /************ 参数ph(para high) ************/
 /* 前置字段 	BASIC_MSG */
 #define CONFERENCE_MODE								(0x00)
@@ -65,6 +66,8 @@
 #define CFG_MASK									(0x08)
 #define CFG_GW										(0x09)
 #define QUERY_HOST									(0x0F)
+#define CUSTOM_VOTE_ITEM							(0x24)
+#define PC_EDIT_ID									(0x2F)
 #define SCAN_ONLINE_UNIT							(0x30)
 #define ONLINE_UNIT									(0x31)
 #define QUERY_PRIOR_SIGN							(0x33)
@@ -73,7 +76,10 @@
 
 /* 前置字段 	POLLING_MSG */
 #define SIGN_POLLING								(0x06)
-#define EDIT_ID_POLLING								(0x08)		
+#define VOTE_POLLING								(0x07)
+#define EDIT_ID_POLLING								(0x08)
+
+
 
 /************ 参数pl(para low) ************/
 /* 前置字段 	BASIC_MSG  CONFERENCE_MODE */
@@ -113,6 +119,55 @@
 #define START_EDIT_ID_MODE							(0x80)
 #define UNIT_CONFIRM_ID								(0x86)
 
+/* 前置字段 	BASIC_MSG  VOTE_MODE */
+
+/* 投票/表决/评级/满意度 类型 */
+#define KEY3_FIRST_SIGN_VOTE 						(0x13)
+#define KEY3_FIRST_NOSIGN_VOTE   					(0x12)
+#define KEY3_LAST_SIGN_VOTE     					(0x11)
+#define KEY3_LAST_NOSIGN_VOTE						(0x10)
+
+#define KEY5_FIRST_SIGN_SELECT						(0x17)
+#define KEY5_FIRST_NOSIGN_SELECT					(0x16)
+#define KEY5_LAST_SIGN_SELECT						(0x15)
+#define KEY5_LAST_NOSIGN_SELECT						(0x14)
+
+#define KEY5_FIRST_SIGN_RATE						(0x1B)
+#define KEY5_FIRST_NOSIGN_RATE						(0x1A)
+#define KEY5_LAST_SIGN_RATE							(0x19)
+#define KEY5_LAST_NOSIGN_RATE						(0x18)
+
+#define KEY2_FIRST_SIGN_CUSTOM						(0x1C)
+#define KEY2_FIRST_NOSIGN_CUSTOM					(0x1D)
+#define KEY2_LAST_SIGN_CUSTOM						(0x1E)
+#define KEY2_LAST_NOSIGN_CUSTOM						(0x1F)
+
+#define KEY3_FIRST_SIGN_CUSTOM						(0x20)
+#define KEY3_FIRST_NOSIGN_CUSTOM					(0x21)
+#define KEY3_LAST_SIGN_CUSTOM						(0x22)
+#define KEY3_LAST_NOSIGN_CUSTOM						(0x23)
+
+#define KEY4_FIRST_SIGN_CUSTOM						(0x30)
+#define KEY4_FIRST_NOSIGN_CUSTOM					(0x31)
+#define KEY4_LAST_SIGN_CUSTOM						(0x32)
+#define KEY4_LAST_NOSIGN_CUSTOM						(0x33)
+
+#define KEY5_FIRST_SIGN_CUSTOM						(0x34)
+#define KEY5_FIRST_NOSIGN_CUSTOM					(0x35)
+#define KEY5_LAST_SIGN_CUSTOM						(0x36)
+#define KEY5_LAST_NOSIGN_CUSTOM						(0x37)
+
+#define KEY3_FIRST_SIGN_SATISFACTION	  			(0x3D)
+#define KEY3_FIRST_NOSIGN_SATISFACTION 				(0x3C)
+#define KEY3_LAST_SIGN_SATISFACTION	  				(0x3B)
+#define KEY3_LAST_NOSIGN_SATISFACTION  				(0x3A)
+
+/* 主席机发起表决 */
+#define VOTE_LAUNCH_BY_CHAIRMAN						(0x2E)
+
+/* 结束表决 */
+#define FINISH_VOTE									(0x08)
+
 /* 前置字段 	POLLING_MSG  SIGN_POLLING */
 #define HOST_SIGN_POLLIGN							(0x52)
 
@@ -121,49 +176,258 @@
 #define CURRENT_ID									(0x61)
 #define CONFIRM_ID									(0x62)
 
+/* 前置字段 	POLLING_MSG  VOTE_POLLING  */
+#define  POLLING_VOTE       						(0x53)               //表决轮询码（三键表决，最后一次有效，不需要签到） 
+#define  POLLING_VOTE_SIGN  						(0x54)               //表决轮询码（三键表决，最后一次有效，需要签到）
+#define  POLLING_VOTE_F     						(0x55)               //表决轮询码 （三键表决，第一次有效，不需要签到） 
+#define  POLLING_VOTE_FSIGN 						(0x56)               //表决轮询码 （三键表决，第一次有效，需要签到）
+#define  POLLING_ELECT								(0x57)               //表决轮询码（五键选举，最后一次有效，不需要签到）
+#define  POLLING_ELECT_SIGN							(0x58)               //表决轮询码 （五键选举，第一次有效，需要签到）
+#define  POLLING_ELECT_F							(0x59)               //表决轮询码 （五键选举，第一次有效，不需要签到）
+#define  POLLING_ELECT_FSIGN 						(0x5A)               //表决轮询码（五键选举，最后一次有效，需要签到）
+#define  POLLING_RATE								(0x5B)               //表决轮询码（五键评级，最后一次有效，不需要签到）
+#define  POLLING_RATE_SIGN							(0x5C)               //表决轮询码 （五键评级，第一次有效，需要签到）
+#define  POLLING_RATE_F								(0x5D)               //表决轮询码 （五键评级，第一次有效，不需要签到）
+#define  POLLING_RATE_FSIGN							(0x5E)               //表决轮询码（五键评级，最后一次有效，需要签到）
+
+#define  POLLING_VOTECUSTOM_F_2_S					(0x60)               //两键自定义表决，第一次有效，需要签到
+#define  POLLING_VOTECUSTOM_F_2						(0x61)               //两键自定义表决，第一次有效，不需要签到
+#define  POLLING_VOTECUSTOM_L_2_S					(0x62)               //两键自定义表决，最后一次有效，需要签到
+#define  POLLING_VOTECUSTOM_L_2						(0x63)               //两键自定义表决，最后一次有效，不需要签到
+#define  POLLING_VOTECUSTOM_F_3_S					(0x64)               //三键自定义表决，第一次有效，需要签到
+#define  POLLING_VOTECUSTOM_F_3						(0x65)               //三键自定义表决，第一次有效，不需要签到
+#define  POLLING_VOTECUSTOM_L_3_S					(0x66)               //三键自定义表决，最后一次有效，需要签到
+#define  POLLING_VOTECUSTOM_L_3						(0x67)               //三键自定义表决，最后一次有效，不需要签到
+#define  POLLING_VOTECUSTOM_F_4_S					(0x68)               //四键自定义表决，第一次有效，需要签到
+#define  POLLING_VOTECUSTOM_F_4						(0x69)               //四键自定义表决，第一次有效，不需要签到
+#define  POLLING_VOTECUSTOM_L_4_S					(0x6A)               //四键自定义表决，最后一次有效，需要签到
+#define  POLLING_VOTECUSTOM_L_4						(0x6B)               //四键自定义表决，最后一次有效，不需要签到
+#define  POLLING_VOTECUSTOM_F_5_S					(0x6C)               //五键自定义表决，第一次有效，需要签到
+#define  POLLING_VOTECUSTOM_F_5						(0x6D)               //五键自定义表决，第一次有效，不需要签到
+#define  POLLING_VOTECUSTOM_L_5_S					(0x6E)               //五键自定义表决，最后一次有效，需要签到
+#define  POLLING_VOTECUSTOM_L_5						(0x6F)               //五键自定义表决，最后一次有效，不需要签到
+
+#define  POLLING_SATISFACTION						(0x70)               //表决轮询码（三键满意度，最后一次有效，不需要签到）
+#define  POLLING_SATISFACTION_SIGN					(0x71)               //表决轮询码 （三键满意度，第一次有效，需要签到）
+#define  POLLING_SATISFACTION_F						(0x72)               //表决轮询码 （三键满意度，第一次有效，不需要签到）
+#define  POLLING_SATISFACTION_FSIGN					(0x73)               //表决轮询码（三键满意度，最后一次有效，需要签到）
 
 
+/* 前置字段      PC_MSG PC_EDIT_ID */
+#define PC_START_EDIT_ID							(0x01)
+#define PC_STOP_EDIT_ID								(0x02)
 
 /* 前置字段 	PC_MSG  SCAN_ONLINE_UNIT */
 #define SCAN_UNIT_END								(0x01)
 
 
+
+
 /*******************************************************************************
  ***                        WIFI单元通讯协议                           ***
  *******************************************************************************/
+#define MasterStarUp_MtoU_G 						(0)  	//主机广播开机\关机 单元机收到主机关机指令后会自动关机
+#define ApplyEnterSystm_UtoM_D 						(1)  	//单元机申请进入系统
+#define RepApplyEnterSystm_MtoU_D 					(2)  	//回复单元机申请进入系统
+#define EnterMeetingMode_MtoU_G 					(3)  	//主机广播给单元机进入会议模式
+#define ApplyOpenMic_UtoM_D 						(4)  	//单元机申请开话筒指令
+#define RepApplyOpenMic_MtoU_D 						(5) 	//回复单元机申请进入开话筒
+#define UnitCloseMic_UtoM_D 						(6)  	//单元机关闭话筒
+#define MasterOpenOrCloseMic_MtoU_D 				(7)  	//主机打开\关闭单元机话筒（主机专用）
+#define UnitGetoutWaitQuenen_UtoM_D 				(8)  	//单元机退出等待队列
+#define ChairExecutePriority_UtoM_D 				(9)  	//主席机执行优先权命令
+#define RepChairExecutePriority_MtoU_D 				(10)  	//回复主席机执行优先权命令
+#define RepresentApplyOpenMic_MtoU_G 				(11) 	//主机广播给主席机有代表机申请开话筒
+#define ChairAgreeOpenOrNot_UtoM_D 					(12) 	//主席机同意\不同意开话筒；  主席机根据结果发05号指令给代表机    
+#define MasterEnableMicOrNot_MtoU_D 				(13)  	//主机使能\禁止单元机打开话筒
+#define  AlarmOrNot_MtoU_G 							(14)  	//主机广播给单元机报警\撤销报警
+#define EnterSpeakWithTimeOrNot_MtoU 				(15)  	//进入\退出发言计时
+#define TimeLimitOrNot_MtoU 						(16)  	//主机广播\单播给单元机进入\退出发言限时
+#define UnitApplyWater_UtoM_D 						(17)  	//单元机茶水申请   
+#define TranslatorAskSlow_UtoM_D					(18)  	//译员机要求放慢语速  
+#define EnterSignMode_MtoU_G						(19)  	//主机广播给单元机进入签到模式
+#define EnableSignOrNot_MtoU_D						(20)  	//禁止\使能单元机签到
+#define SupplementSign_MtoU_D 						(21)  	//主机帮单元机补签到
+#define RepSupplementSign_UtoM_D 					(22) 	//回复主机帮单元机补签到
+#define ChairStarupOrEndSign_UtoM_D 				(23)  	//主席机发起或结束签到
+#define RepChairStarupOrEndSign_MtoU_D				(24)  	//回复主席机发起签到
+#define EnterVoteMode_MtoU_G 						(25)	//主机广播给单元机进入签到表决模式
+#define ChairStarupOrEndVote_UtoM_D 				(26)  	//主席机发起表决
+#define RepChairStarupOrEndVote_MtoU_D 				(27)  	//回复主席机发起表决
+#define ChairSuspendVote_UtoM_D 			        (28)  	//主席机暂停表决，并要求主机广播表决结果
+#define EnableVoteOrNot_MtoU_D			  	        (29)  	//禁止\使能单元机表决
+#define SetLanguage_MtoU_G							(30)  	//设置单元机显示语言
+#define SetUnitEQ_MtoU_G				            (31)  	//设置保存EQ
+#define SetandSaveUnitEQ_MtoU_D 		            (32)  	//设置保存EQ
+#define ReadUnitEQ_MtoU_D			               	(33)  	//主机读取EQ
+#define RepReadUnitEQ_UtoM_D						(34)  	//回复主机读取EQ
+#define RepReadUnitEQ_MtoU_D 						(35)  	//设置单元机高通滤波器
+#define SetUnitMICSensitivity_MtoU_D				(36)  	//设置单元机MIC灵敏度
+#define RepReadUnitMICSensitivity_UtoM_D 			(37)  	//回复PC读取MIC灵敏度
+#define SetUnitMICEQ_MtoU_D 						(38)  	//PC设置单元机EQ
+#define SetUnitChannel_MtoU_G 						(39)  	//设置单元机通道数
+#define PollUnitl_MtoU_D 							(40)  	//主机轮询
+#define RepPollUnitl_UtoM_D 						(41)  	//轮询应答（会议模式para1高半字节有效 ；签到模式para1底半字节有效；表决模式para2有效 ）
+#define SetUnitPrintMsg_MtoU_G						(42)	//设置单元机显示短\长消息
+#define SetUnitPrintFixMsg_MtoU_G			 		(43)  	//设置单元机显示固定消息 1：有事找你，请到会议室门口     2：有事找你，请到控制台
+#define EnterEditingIDMtoU_G						(44)	//进入编ID模式
+#define UnitGraspIDUtoM_D							(45)	//单元机以当前广播的ID作为本机ID
+#define IDRepeatingMtoU_G							(46)	//广播有ID重复
+#define MasterAskforReenterSysMtoU_D				(47) 	//主机要求单元机重新进入系统
+#define UnitCapacityStrChangeUtoM_D					(48) 	//单元机通知主机电量只有一格
+#define ControlSign_MtoU_D							(49) 	//主机控制签到
+#define ChangeMicManage_MtoU_G						(50)	//主机广播给单元机改变话筒管理模式
+#define PCUpdateCustomTerm_MtoU_G					(51)	//PC下发表决自定义选项
+#define ConfirmUnitIDMtoU_D							(52)  	//收到单元机以当前广播的ID作为本机ID后确认字段
+#define SetVoiceSensitivity_MtoU_D					(60)	//设置声控灵敏度
+#define SetVoiceCloseTime_MtoU_D					(61)	//设置声控自动关闭时间
+#define ResetAllUnit_MtoU_G							(63)	//主重置所有的单元机 (20181019)	
+#define RealTimeMtoU_G								(80) 	//下发真实时间到无线单元 20190827
+#define MasterTransmissionMtoU_D             		(250) 	//PC下发透传指令
 
 
+/* 投票/表决/评级/满意度 类型 */
+typedef enum {
+    Key3First_Sign_vote 	= 0,
+    Key3First_NoSign_vote   = 1,
+    Key3Last_Sign_vote     	= 2,
+    Key3Last_NoSign_vote	= 3,
 
+    Key5First_Sign_Select	= 4,
+    Key5First_NoSign_Select	= 5,
+    Key5Last_Sign_Select	= 6,
+    Key5Last_NoSign_Select	= 7,
+
+    Key5First_Sign_Rate		= 8,
+    Key5First_NoSign_Rate	= 9,
+    Key5Last_Sign_Rate		= 10,
+    Key5Last_NoSign_Rate	= 11,
+
+    Key2First_Sign_CustomTerm	= 12,
+    Key2First_NoSign_CustomTerm	= 13,
+    Key2Last_Sign_CustomTerm	= 14,
+    Key2Last_NoSign_CustomTerm	= 15,
+
+    Key3First_Sign_CustomTerm	= 16,
+    Key3First_NoSign_CustomTerm	= 17,
+    Key3Last_Sign_CustomTerm	= 18,
+    Key3Last_NoSign_CustomTerm	= 19,
+
+    Key4First_Sign_CustomTerm	= 20,
+    Key4First_NoSign_CustomTerm	= 21,
+    Key4Last_Sign_CustomTerm	= 22,
+    Key4Last_NoSign_CustomTerm	= 23,
+
+    Key5First_Sign_CustomTerm	= 24,
+    Key5First_NoSign_CustomTerm	= 25,
+    Key5Last_Sign_CustomTerm	= 26,
+    Key5Last_NoSign_CustomTerm	= 27,
+
+    Key3First_Sign_Satisfaction	  = 28,
+    Key3First_NoSign_Satisfaction = 29,
+    Key3Last_Sign_Satisfaction	  = 30,
+    Key3Last_NoSign_Satisfaction  = 31,
+} VoteMode_EN;
+
+/*******************************************************************************
+ ***                        大彩屏幕（迪文）通讯协议               			             ***
+ *******************************************************************************/
+#define Startup_Page 									(00)               //1开机动画
+#define Welcom_Page										(01)               //2欢迎界面
+#define Main_Munu_Page 									(02)               //主界面
+#define ModeNum_Page									(03)               //3会议模式
+#define SetID_Page 										(04)               //4开始编ID
+#define SetID_Proc_Page 								(05)               //5结束编ID
+#define ID_Repeat_Page  								(06)               //6ID重复
+#define RESETID_Page	 								(07)               //ID重复后编ID
+#define EndSetID_Page 									(08)               //结束编ID
+#define Hard_SetID_Page 								(09)               //硬件编ID
+#define StartTranSetID_Page 							(10)               //译员机开始编ID
+#define EndTranSetID_Page								(11)               //译员机结束编ID
+#define SysState_Page 									(12)               //系统状态
+#define SystemSet_Page 									(13)               //系统设置
+#define Language_Page									(14)               //系统设置-语言设置
+#define Display_Page 									(15)               //系统设置-显示设置
+#define Volume_Page 									(16)               //系统设置-音量设置
+#define	System_Restore_default							(17)               //系统设置-恢复默认
+#define IP_Page 										(18)               //系统设置-本地IP
+#define ID_MODE_Page									(19)               //系统设置-编ID模式
+#define	Turn_off_wireless								(20)               //系统设置-无线单元关机
+#define Sender_Sound_SW_Page							(21)               //系统设置-下传功能
+#define RECORD_CARD_PAUSE_Page							(22)               //暂停
+#define RECORD_CARD_PLAY_Page							(23)               //播放
+#define RECORD_CARD_RECOEDING_Page						(24)               //录音播放
+#define RECORD_CARD_WAIT_RECORD_Page					(25)               //等待录音操作有响应
+#define Error_Page										(26)               //输入错误
+#define PC_Connect_Page 								(27)               //PC连接中
+#define Hardware_Error_Page 							(28)               //硬件中断错误
+#define	Restore_default_OK								(29)               //恢复默认成功
+#define EEPROM_Error_Page 								(30)               //未检出到EEPROM
+#define PT2315_Error_Page 								(31)               //音频通道不正常
+#define FPGA_Error_Page 								(32)               //FPGA启动异常						32
+#define W5100_Error_Page 								(33)               //5100启动异常						33
+#define PT2315_Error_Page2								(34)               //
+#define Sinin_Page 										(35)               //硬件签到进行中
+#define Vote_Page 										(36)               //硬件表决进行中
+#define FireAlarm_Page 									(37)               //消防警告
+#define NO_Batteries_Page 								(38)               //电池没装好
+#define Trial_Expires_page								(39)               //试用期已到		
+#define RECORD_CARD_INITING_Page						(40)               //U盘初始化
+#define System_Type_Page								(41)               //机器类型
+
+/* 屏幕通讯类型 */
+typedef enum {
+	/* 切换页面 */
+	tType_Screen_Page = 0x80,
+	/* 查询页面 */
+	tType_Screen_Query = 0x81,
+	/* 配置寄存器的值 */
+	tType_Screen_CfgReg = 0x82,
+	/* 屏幕界面返回值 */
+	tType_Screen_InterfaceRet = 0x83,
+}ScreenProtType_EN;
 
 
 /******************************** 协议数据结构 ************************************/
 /*  全数字会议系统通讯协议数据结构(基本结构) */
 #pragma pack(1)	/* 单字节对齐 */
 typedef struct {
-	uint16_t id;
-	uint8_t type;
-	uint8_t ph;
-	uint8_t pl;
-	uint8_t ch; 
-	uint16_t sec;
-}ConfProtocol_S;
+    uint16_t id;
+    uint8_t type;
+    uint8_t ph;
+    uint8_t pl;
+    uint8_t ch;
+    uint16_t sec;
+} ConfProtocol_S;
 #pragma pack()
 
 /*  WIFI单元通讯协议数据结构(基本结构) */
 #pragma pack(1)	/* 单字节对齐 */
 typedef struct {
-	uint16_t id;
-	uint8_t cmd;
-	uint8_t ph;
-	uint8_t pl;
-}WifiUnitProtocol_S;
+    uint16_t id;
+    uint8_t cmd;
+    uint8_t ph;
+    uint8_t pl;
+} WifiUnitProtocol_S;
 #pragma pack()
 
 
+/* 大彩屏幕通讯协议（迪文协议）数据介机构（基本结构） */
+#pragma pack(1)	/* 单字节对齐 */
 typedef struct {
-	ConfProtocol_S *(*conference)(ConfProtocol_S *,uint16_t ,uint8_t ,uint8_t ,uint8_t ,uint8_t ,uint16_t );
-	WifiUnitProtocol_S *(*wifiUnit)(WifiUnitProtocol_S *, uint16_t, uint8_t ,uint8_t ,uint8_t);
-}Protocol_S;
+    ScreenProtType_EN type;
+	uint8_t para[5];
+} ScreenProtocol_S;
+#pragma pack()
+
+
+
+
+typedef struct {
+    ConfProtocol_S *(*conference)(ConfProtocol_S *,uint16_t,uint8_t,uint8_t,uint8_t,uint8_t,uint16_t );
+    WifiUnitProtocol_S *(*wifiUnit)(WifiUnitProtocol_S *, uint16_t, uint8_t,uint8_t,uint8_t);
+	ScreenProtocol_S *(*screen)(ScreenProtocol_S *prot,ScreenProtType_EN type,uint16_t reg);
+} Protocol_S;
 
 extern Protocol_S Protocol;
 #endif

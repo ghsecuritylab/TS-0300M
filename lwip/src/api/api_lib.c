@@ -859,7 +859,7 @@ netconn_shutdown(struct netconn *conn, u8_t shut_rx, u8_t shut_tx)
 #if LWIP_IGMP || (LWIP_IPV6 && LWIP_IPV6_MLD)
 /**
  * @ingroup netconn_udp
- * Join multicast groups for UDP netconns.
+ * Join kMode_Wifi_Multicast groups for UDP netconns.
  *
  * @param conn the UDP netconn for which to change multicast addresses
  * @param multiaddr IP address of the multicast group to join or leave

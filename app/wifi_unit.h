@@ -7,11 +7,18 @@
  * Definitions
  ******************************************************************************/
 
+/* 无线单元发送模式 */
+typedef enum {
+    kMode_Wifi_Unitcast,
+    kMode_Wifi_Multicast,
+} WifiSendMode_EN;
+
+
 /* 无线单元设备API数据结构 */
 typedef struct {
 	void (*launch)(void);
-	void (*transWithExData)(WifiUnitProtocol_S *, uint16_t , uint8_t *);
-	void (*transmit)(WifiUnitProtocol_S *);
+	void (*transWithExData)(WifiSendMode_EN mode,WifiUnitProtocol_S *prot, uint16_t exLen, uint8_t *exData);
+	void (*transmit)(WifiSendMode_EN mode,WifiUnitProtocol_S *prot);
 }WifiUnit_S;
 
 

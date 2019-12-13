@@ -33,7 +33,7 @@ extern int DbgConsole_Printf(const char *fmt_s, ...);
 #if defined(SDK_DEBUGCONSOLE) && (SDK_DEBUGCONSOLE < 1)
 #define usb_echo printf
 #else
-#define usb_echo DbgConsole_Printf
+#define usb_echo printf
 #endif
 
 #if defined(__ICCARM__)

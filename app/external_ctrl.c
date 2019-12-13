@@ -27,7 +27,7 @@
 #include "mdns.h"
 
 /* API */
-#include "app_common.h"
+#include "app.h"
 #include "network.h"
 #include "ram.h"
 
@@ -37,10 +37,13 @@
  * Definitions
  ******************************************************************************/
 /**** 网络相关参数定义 ****/
-#define HOST_LOCAL_IP								{172,16,14,216}
+#define HOST_LOCAL_IP								{172,16,14,117}
 #define HOST_GATEWAY								{172,16,14,254}
 #define HOST_NETMASK								{255,255,255,0}
 #define HOST_PORT									(50000)
+
+/* 网络接口 */
+#define NETWORK_ENET_TYPE							eth0
 
 /* 网络类型 */
 #define NETWORK_TYPE								NETWORK_TYPE_TCPIP
@@ -88,8 +91,8 @@ static void ExternalCtrl_ctrlDataTransmitWithExData(EXE_DEST dest, ConfProtocol_
 static void ExternalCtrl_LaunchTask(void *pvParameters);
 static void ExternalCtrl_EthStaListener(bool sta);
 static DataPack_S *ExternalCtrl_FetchDataFromBuf(Network_DataBuf_S *taskBuf);
-static void ExternalCtrl_NotifyConference(NotifySrc_EN nSrc, NOTIFY_KEYWORD kWord, ConfProtocol_S *prot);
-static void ExternalCtrl_NotifyConferenceWithExData(NotifySrc_EN nSrc, NOTIFY_KEYWORD kWord, ConfProtocol_S *prot, uint16_t exLen, uint8_t *exData);
+static void ExternalCtrl_NotifyConference(NotifySrcType_EN nSrc, ConfProtocol_S *prot);
+static void ExternalCtrl_NotifyConferenceWithExData(NotifySrcType_EN nSrc, ConfProtocol_S *prot, uint16_t exLen, uint8_t *exData);
 static void ExternalCtrl_ReplyHeartbeat(EXE_DEST dest);
 static void ExternalCtrl_ReplyQuery(EXE_DEST dest, uint8_t para);
 
@@ -168,7 +171,7 @@ static void ExternalCtrl_LaunchTask(void *pvParameters){
 	ethPara = MALLOC(sizeof(Network_EthPara_S));
 
 	/* 网口初始化 */
-	ethPara->index = eth1;
+	ethPara->index = NETWORK_ENET_TYPE;
 	ethPara->type = NETWORK_TYPE;
 	NETWORK_SET_ADDR(ethPara->ip,hostIp.addr0,hostIp.addr1,hostIp.addr2,hostIp.addr3);
 	NETWORK_SET_ADDR(ethPara->gateway,hostGw.addr0,hostGw.addr1,hostGw.addr2,hostGw.addr3);
@@ -199,7 +202,6 @@ static void ExternalCtrl_LaunchTask(void *pvParameters){
 	
 	isPcCtrlEnable = isWebCtrlEnable = isUartCtrlEnable = false;
 	
-	vTaskSuspend(null);
 	vTaskDelete(null);
 }
 
@@ -214,7 +216,7 @@ static void ExternalCtrl_LaunchTask(void *pvParameters){
 */
 static void ExternalCtrl_EthStaListener(bool sta){
 	isEthConnected = sta;
-	debug("Ethernet port 1 is %s \r\n",sta ? "connect" : "disconnect");
+	debug("External control (net port) %s \r\n",sta ? "connected" : "disconnected");
 }
 
 
@@ -270,7 +272,7 @@ static DataPack_S *ExternalCtrl_FetchDataFromBuf(Network_DataBuf_S *buf){
 *
 * @return		
 */
-static void ExternalCtrl_DataProcess(NotifySrc_EN nSrc, ExCtrlData_S *ctrlData){
+static void ExternalCtrl_DataProcess(NotifySrcType_EN nSrc, ExCtrlData_S *ctrlData){
 	ConfProtocol_S prot;
 	uint8_t exLen = 0, *exData = null;
 	
@@ -296,10 +298,10 @@ static void ExternalCtrl_DataProcess(NotifySrc_EN nSrc, ExCtrlData_S *ctrlData){
 		exLen = ctrlData->len - sizeof(ConfProtocol_S);
 		exData = MALLOC(exLen);
 		memcpy(exData,&ctrlData->exDataHead,exLen);
-		ExternalCtrl_NotifyConferenceWithExData(nSrc,NK_CONFERENCE_MSG,&prot,exLen,exData);
+		ExternalCtrl_NotifyConferenceWithExData(nSrc,&prot,exLen,exData);
 	}
 	else
-		ExternalCtrl_NotifyConference(nSrc,NK_CONFERENCE_MSG,&prot);
+		ExternalCtrl_NotifyConference(nSrc,&prot);
 }
 
 /** 
@@ -311,7 +313,7 @@ static void ExternalCtrl_DataProcess(NotifySrc_EN nSrc, ExCtrlData_S *ctrlData){
 *
 * @return		
 */ 
-static void ExternalCtrl_NotifyConferenceWithExData(NotifySrc_EN nSrc,NOTIFY_KEYWORD kWord, ConfProtocol_S *prot, uint16_t exLen, uint8_t *exData){
+static void ExternalCtrl_NotifyConferenceWithExData(NotifySrcType_EN nSrc, ConfProtocol_S *prot, uint16_t exLen, uint8_t *exData){
 	Notify_S *notify;
 	
 	ERR_CHECK(prot != null,return);
@@ -340,8 +342,8 @@ static void ExternalCtrl_NotifyConferenceWithExData(NotifySrc_EN nSrc,NOTIFY_KEY
 *
 * @return		
 */ 
-static void ExternalCtrl_NotifyConference(NotifySrc_EN nSrc,NOTIFY_KEYWORD kWord, ConfProtocol_S *prot){
-	ExternalCtrl_NotifyConferenceWithExData(nSrc, kWord, prot, null, null);
+static void ExternalCtrl_NotifyConference(NotifySrcType_EN nSrc, ConfProtocol_S *prot){
+	ExternalCtrl_NotifyConferenceWithExData(nSrc, prot, null, null);
 }
 
 
@@ -385,10 +387,10 @@ static void ExternalCtrl_ctrlDataTransmitWithExData(EXE_DEST dest, ConfProtocol_
 	taskBuf->len = dataLen;
 	taskBuf->data = (uint8_t *)ctrlData;
 	
-	if((dest & sPC) && isPcCtrlEnable)
+	if((dest & kType_NotiSrc_PC) && isPcCtrlEnable)
 		Network.transmit(pcNetTaskHandler,taskBuf);
 	
-	if((dest & sWeb) && isWebCtrlEnable){
+	if((dest & kType_NotiSrc_Web) && isWebCtrlEnable){
 		taskBuf->webType = tWebsocket;
 		taskBuf->wsType = WS_DATA_BINARY;
 		Network.transmit(webNetTaskHandler,taskBuf);
@@ -491,7 +493,7 @@ static void PcCtrl_ProcessTask(void *pvParameters){
 	taskPara->port = hostPort;
 	taskPara->type = tServer;
 	taskPara->tcpListener = PcCtrl_TcpStaListener;
-	pcNetTaskHandler = Network.creatTask(eth1,tTcp,taskPara);
+	pcNetTaskHandler = Network.creatTask(NETWORK_ENET_TYPE,tTcp,taskPara);
 	
 	debug("PC control process task start!!\r\n");
 	
@@ -502,7 +504,7 @@ static void PcCtrl_ProcessTask(void *pvParameters){
 		dataPack = ExternalCtrl_FetchDataFromBuf(taskBuf);
 		if(dataPack->packNum > 0){
 			for(index = 0;index < dataPack->packNum;index++){
-				ExternalCtrl_DataProcess(sPC,dataPack->ctrlData[index]);
+				ExternalCtrl_DataProcess(kType_NotiSrc_PC,dataPack->ctrlData[index]);
 			}
 		}
 		xSemaphoreGive(ctrlProcessSemaphore);
@@ -570,7 +572,7 @@ static void WebCtrl_ProcessTask(void *pvParameters){
 	taskPara->websocket.wsListener = WebCtrl_WsStaListener;
 
 	/* 初始化网络任务 */
-	webNetTaskHandler = Network.creatTask(eth1,tHttp,taskPara);
+	webNetTaskHandler = Network.creatTask(NETWORK_ENET_TYPE,tHttp,taskPara);
 	
 	debug("WEB control process task start!!\r\n");
 	
@@ -583,7 +585,7 @@ static void WebCtrl_ProcessTask(void *pvParameters){
 			
 			if(dataPack->packNum > 0){
 				for(index = 0;index < dataPack->packNum;index++){
-					ExternalCtrl_DataProcess(sPC,dataPack->ctrlData[index]);
+					ExternalCtrl_DataProcess(kType_NotiSrc_Web,dataPack->ctrlData[index]);
 				}
 			}
 			xSemaphoreGive(ctrlProcessSemaphore);

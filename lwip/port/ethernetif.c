@@ -57,8 +57,8 @@
 
 #include "ethernetif.h"
 
-#include "fsl_enet.h"
-#include "fsl_phy.h"
+
+#include "hal_phy.h"
 
 /*******************************************************************************
  * Definitions
@@ -101,6 +101,7 @@ typedef uint8_t tx_buffer_t[SDK_SIZEALIGN(ENET_TXBUFF_SIZE, FSL_ENET_BUFF_ALIGNM
 struct ethernetif
 {
     ENET_Type *base;
+	ethernetif_config_t *config;
 #if (defined(FSL_FEATURE_SOC_ENET_COUNT) && (FSL_FEATURE_SOC_ENET_COUNT > 0)) || \
     (USE_RTOS && defined(FSL_RTOS_FREE_RTOS))
     enet_handle_t handle;
@@ -120,8 +121,16 @@ struct ethernetif
 #endif
 #endif
 };
+/*******************************************************************************
+ * Variables
+ ******************************************************************************/
+/* Implementation structure */
+static struct ethernetif ethernetif_arr[ENET_PORT_NUM];
 
-
+AT_NONCACHEABLE_SECTION_ALIGN(static enet_rx_bd_struct_t rxBuffDescrip[ENET_PORT_NUM][ENET_RXBD_NUM], FSL_ENET_BUFF_ALIGNMENT);
+AT_NONCACHEABLE_SECTION_ALIGN(static enet_tx_bd_struct_t txBuffDescrip[ENET_PORT_NUM][ENET_TXBD_NUM], FSL_ENET_BUFF_ALIGNMENT);
+SDK_ALIGN(static rx_buffer_t rxDataBuff[ENET_PORT_NUM][ENET_RXBD_NUM], FSL_ENET_BUFF_ALIGNMENT);
+SDK_ALIGN(static tx_buffer_t txDataBuff[ENET_PORT_NUM][ENET_TXBD_NUM], FSL_ENET_BUFF_ALIGNMENT);
 /*******************************************************************************
  * Code
  ******************************************************************************/
@@ -139,8 +148,9 @@ static void ethernet_callback(ENET_Type *base, enet_handle_t *handle, enet_event
     struct netif *netif = (struct netif *)param;
     struct ethernetif *ethernetif = netif->state;
     BaseType_t xResult;
-    
-
+	
+	
+//	PRINTF("eth1_callback:event: %d  data len: %d\r\n",event,ethernetif->RxBuffDescrip->length);
     switch (event)
     {
         case kENET_RxEvent:
@@ -173,6 +183,51 @@ static void ethernet_callback(ENET_Type *base, enet_handle_t *handle, enet_event
     }
 }
 #endif
+
+
+//static void ethernet2_callback(ENET_Type *base, enet_handle_t *handle, enet_event_t event, void *param)
+//{
+//    struct netif *netif = (struct netif *)param;
+//    struct ethernetif *ethernetif = netif->state;
+//    BaseType_t xResult;
+//    
+//	
+//	
+//	PRINTF("eth2_callback:event: %d  data len: %d\r\n",event,ethernetif->RxBuffDescrip->length);
+//    switch (event)
+//    {
+//        case kENET_RxEvent:
+//            ethernetif_input(netif);
+//            break;
+//        case kENET_TxEvent:
+//        {
+//            portBASE_TYPE taskToWake = pdFALSE;
+//
+//#ifdef __CA7_REV
+//            if (SystemGetIRQNestingLevel())
+//#else
+//            if (__get_IPSR())
+//#endif 
+//            {
+//                xResult = xEventGroupSetBitsFromISR(ethernetif->enetTransmitAccessEvent, ethernetif->txFlag, &taskToWake);
+//                if ((pdPASS == xResult) && (pdTRUE == taskToWake))
+//                {
+//                    portYIELD_FROM_ISR(taskToWake);
+//                }
+//            }
+//            else
+//            {
+//                xEventGroupSetBits(ethernetif->enetTransmitAccessEvent, ethernetif->txFlag);
+//            }
+//        }
+//        break;
+//        default:
+//            break;
+//    }
+//}
+//
+//static const enet_callback_t enet_callback[3] = {ethernet_callback,0,ethernet2_callback};
+
 
 #if LWIP_IPV4 && LWIP_IGMP
 static err_t ethernetif_igmp_mac_filter(struct netif *netif, const ip4_addr_t *group, enum netif_mac_filter_action action)
@@ -331,7 +386,7 @@ static inline enet_tx_bd_struct_t *get_tx_desc(struct ethernetif *ethernetif, ui
  */
 #if defined(FSL_FEATURE_SOC_ENET_COUNT) && (FSL_FEATURE_SOC_ENET_COUNT > 0)
 static err_t enet_init(struct netif *netif, struct ethernetif *ethernetif,
-                      const ethernetif_config_t *ethernetifConfig)
+                      const ethernetif_config_t *enetConfig)
 {
     enet_config_t config;
     uint32_t sysClock;
@@ -341,6 +396,8 @@ static err_t enet_init(struct netif *netif, struct ethernetif *ethernetif,
     phy_duplex_t duplex;
     uint32_t count = 0;
     enet_buffer_config_t buffCfg[ENET_RING_NUM];
+	
+//	HAL_Phy_S *driver;
 
     /* prepare the buffer configuration. */
     buffCfg[0].rxBdNumber = ENET_RXBD_NUM;                      /* Receive buffer descriptor number. */
@@ -352,14 +409,20 @@ static err_t enet_init(struct netif *netif, struct ethernetif *ethernetif,
     buffCfg[0].rxBufferAlign = &(ethernetif->RxDataBuff[0][0]); /* Receive data buffer start address. */
     buffCfg[0].txBufferAlign = &(ethernetif->TxDataBuff[0][0]); /* Transmit data buffer start address. */
 
-    sysClock = CLOCK_GetFreq(ethernetifConfig->clockName);
+    sysClock = CLOCK_GetFreq(enetConfig->clockName);
 
     ENET_GetDefaultConfig(&config);
     config.ringNum = ENET_RING_NUM;
 	config.txAccelerConfig = kENET_TxAccelIpCheckEnabled | kENET_TxAccelProtoCheckEnabled;
-	config.rxAccelerConfig = kENET_RxAccelIpCheckEnabled | kENET_RxAccelProtoCheckEnabled;
+//	config.rxAccelerConfig = kENET_RxAccelIpCheckEnabled | kENET_RxAccelProtoCheckEnabled;
 
-	status = PHY_Init(ENET2, ethernetifConfig->phyAddress, sysClock);
+	if(!enetConfig->enBrocastRec)
+		config.macSpecialConfig |= kENET_ControlRxBroadCastRejectEnable;
+
+//	driver = HAL_GetPhyDriver(enetConfig->drivType);
+//	status = driver->init(ethernetif->base, enetConfig->phyAddress, sysClock);
+	status = HAL_PhyInit(enetConfig->drivType);
+	
 	if(status != kStatus_Success)
 	{
 		return ERR_IF;
@@ -367,12 +430,13 @@ static err_t enet_init(struct netif *netif, struct ethernetif *ethernetif,
 
     while ((count < ENET_ATONEGOTIATION_TIMEOUT) && (!link))
     {
-		PHY_GetLinkStatus(ENET2, ethernetifConfig->phyAddress, &link);
-
+//		driver->getLink(ethernetif->base, enetConfig->phyAddress, &link);
+		HAL_PhyGetLink(enetConfig->drivType,&link);
         if (link)
         {
             /* Get the actual PHY link speed. */
-			PHY_GetLinkSpeedDuplex(ENET2, ethernetifConfig->phyAddress, &speed, &duplex);
+//			driver->getSpeedDuplex(ethernetif->base, enetConfig->phyAddress, &speed, &duplex);
+			HAL_PhyGetSpeedDuplex(enetConfig->drivType,&speed,&duplex);
             /* Change the MII speed and duplex for actual link status. */
             config.miiSpeed = (enet_mii_speed_t)speed;
             config.miiDuplex = (enet_mii_duplex_t)duplex;
@@ -545,8 +609,7 @@ static void enet_init(struct netif *netif, struct ethernetif *ethernetif,
  * @param netif the already initialized lwip network interface structure
  *        for this ethernetif
  */
-static err_t low_level_init(struct netif *netif, const uint8_t enetIdx,
-                           const ethernetif_config_t *ethernetifConfig)
+static err_t low_level_init(struct netif *netif,const ethernetif_config_t *enetConfig)
 {
     struct ethernetif *ethernetif = netif->state;
 
@@ -554,18 +617,18 @@ static err_t low_level_init(struct netif *netif, const uint8_t enetIdx,
     netif->hwaddr_len = ETH_HWADDR_LEN;
 
     /* set MAC hardware address */
-    memcpy(netif->hwaddr, ethernetifConfig->macAddress, NETIF_MAX_HWADDR_LEN);
+    memcpy(netif->hwaddr, enetConfig->macAddress, NETIF_MAX_HWADDR_LEN);
 
     /* maximum transfer unit */
     netif->mtu = 1500; /* TODO: define a config */
 
     /* device capabilities */
     /* don't set NETIF_FLAG_ETHARP if this device is not an ethernet one */
-    netif->flags |= NETIF_FLAG_BROADCAST | NETIF_FLAG_LINK_UP | ethernetifConfig->flag;
+    netif->flags |= NETIF_FLAG_BROADCAST | NETIF_FLAG_LINK_UP | enetConfig->flag;
 //	netif->flags |= NETIF_FLAG_BROADCAST | NETIF_FLAG_ETHERNET | NETIF_FLAG_LINK_UP;
 
     /* ENET driver initialization.*/
-    return enet_init(netif, ethernetif, ethernetifConfig);
+    return enet_init(netif, ethernetif, enetConfig);
 
 #if LWIP_IPV6 && LWIP_IPV6_MLD
     /*
@@ -1057,6 +1120,30 @@ static struct pbuf *low_level_input(struct netif *netif)
     return p;
 }
 
+
+
+static ENET_Type *get_enet_base(const uint8_t enetIdx)
+{
+    ENET_Type* enets[] = ENET_BASE_PTRS;
+    int arrayIdx;
+    int enetCount;
+
+    for (arrayIdx = 0, enetCount = 0; arrayIdx < ARRAY_SIZE(enets); arrayIdx++)
+    {
+        if (enets[arrayIdx] != 0U)    /* process only defined positions */
+        {                             /* (some SOC headers count ENETs from 1 instead of 0) */
+            if (enetCount == enetIdx)
+            {
+                return enets[arrayIdx];
+            }
+            enetCount++;
+        }
+    }
+
+    return NULL;
+}
+
+
 /**
  * This function should be called when a packet is ready to be read
  * from the interface. It uses the function low_level_input() that
@@ -1085,33 +1172,26 @@ void ethernetif_input(struct netif *netif)
     }
 }
 
-static ENET_Type *get_enet_base(const uint8_t enetIdx)
+
+err_t ethernetif_init(struct netif *netif)
 {
-    ENET_Type* enets[] = ENET_BASE_PTRS;
-    int arrayIdx;
-    int enetCount;
+	ethernetif_config_t *enetConfig = (ethernetif_config_t *)netif->state;
+	struct ethernetif *ethernetif;
+//	enet_port_type type;
 
-    for (arrayIdx = 0, enetCount = 0; arrayIdx < ARRAY_SIZE(enets); arrayIdx++)
-    {
-        if (enets[arrayIdx] != 0U)    /* process only defined positions */
-        {                             /* (some SOC headers count ENETs from 1 instead of 0) */
-            if (enetCount == enetIdx)
-            {
-                return enets[arrayIdx];
-            }
-            enetCount++;
-        }
-    }
+//    LWIP_ASSERT("netif != NULL", (netif != NULL));
+//    LWIP_ASSERT("ethernetifConfig != NULL", (enetConfig != NULL));
 
-    return NULL;
-}
+	if(netif == NULL || enetConfig == NULL || (uint8_t)enetConfig->type >= ENET_PORT_NUM)
+		return ERR_IF;
 
-static err_t ethernetif_init(struct netif *netif, struct ethernetif *ethernetif,
-                             const uint8_t enetIdx,
-                             const ethernetif_config_t *ethernetifConfig)
-{
-    LWIP_ASSERT("netif != NULL", (netif != NULL));
-    LWIP_ASSERT("ethernetifConfig != NULL", (ethernetifConfig != NULL));
+	ethernetif = &ethernetif_arr[enetConfig->type];
+	ethernetif->config = enetConfig;
+
+	ethernetif->RxBuffDescrip = &(rxBuffDescrip[enetConfig->type][0]);
+    ethernetif->TxBuffDescrip = &(txBuffDescrip[enetConfig->type][0]);
+    ethernetif->RxDataBuff = &(rxDataBuff[enetConfig->type][0]);
+    ethernetif->TxDataBuff = &(txDataBuff[enetConfig->type][0]);
 
 #if LWIP_NETIF_HOSTNAME
     /* Initialize interface hostname */
@@ -1150,96 +1230,55 @@ static err_t ethernetif_init(struct netif *netif, struct ethernetif *ethernetif,
 #endif
 
     /* Init ethernetif parameters.*/
-    ethernetif->base = get_enet_base(enetIdx);
+    ethernetif->base = get_enet_base(enetConfig->type);
     LWIP_ASSERT("ethernetif->base != NULL", (ethernetif->base != NULL));
 
     /* initialize the hardware */
 //    low_level_init(netif, enetIdx, ethernetifConfig);
 
-    return low_level_init(netif, enetIdx, ethernetifConfig);
-}
-
-/**
- * Should be called at the beginning of the program to set up the
- * first network interface. It calls the function low_level_init() to do the
- * actual setup of the hardware.
- *
- * This function should be passed as a parameter to netif_add().
- *
- * @param netif the lwip network interface structure for this ethernetif
- * @return ERR_OK if the loopif is initialized
- *         ERR_MEM if private data couldn't be allocated
- *         any other err_t on error
- */
-err_t ethernetif0_init(struct netif *netif)
-{
-    static struct ethernetif ethernetif_0;
-    AT_NONCACHEABLE_SECTION_ALIGN(static enet_rx_bd_struct_t rxBuffDescrip_0[ENET_RXBD_NUM], FSL_ENET_BUFF_ALIGNMENT);
-    AT_NONCACHEABLE_SECTION_ALIGN(static enet_tx_bd_struct_t txBuffDescrip_0[ENET_TXBD_NUM], FSL_ENET_BUFF_ALIGNMENT);
-    SDK_ALIGN(static rx_buffer_t rxDataBuff_0[ENET_RXBD_NUM], FSL_ENET_BUFF_ALIGNMENT);
-    SDK_ALIGN(static tx_buffer_t txDataBuff_0[ENET_TXBD_NUM], FSL_ENET_BUFF_ALIGNMENT);
-
-    ethernetif_0.RxBuffDescrip = &(rxBuffDescrip_0[0]);
-    ethernetif_0.TxBuffDescrip = &(txBuffDescrip_0[0]);
-    ethernetif_0.RxDataBuff = &(rxDataBuff_0[0]);
-    ethernetif_0.TxDataBuff = &(txDataBuff_0[0]);
-
-    return ethernetif_init(netif, &ethernetif_0, 0U, (ethernetif_config_t *)netif->state);
-}
-
-#if (defined(FSL_FEATURE_SOC_ENET_COUNT) && (FSL_FEATURE_SOC_ENET_COUNT > 1)) \
- || (defined(FSL_FEATURE_SOC_LPC_ENET_COUNT) && (FSL_FEATURE_SOC_LPC_ENET_COUNT > 1))
-/**
- * Should be called at the beginning of the program to set up the
- * second network interface. It calls the function low_level_init() to do the
- * actual setup of the hardware.
- *
- * This function should be passed as a parameter to netif_add().
- *
- * @param netif the lwip network interface structure for this ethernetif 
- * @return ERR_OK if the loopif is initialized
- *         ERR_MEM if private data couldn't be allocated
- *         any other err_t on error
- */
-err_t ethernetif1_init(struct netif *netif)
-{
-    static struct ethernetif ethernetif_1;
-    AT_NONCACHEABLE_SECTION_ALIGN(static enet_rx_bd_struct_t rxBuffDescrip_1[ENET_RXBD_NUM], FSL_ENET_BUFF_ALIGNMENT);
-    AT_NONCACHEABLE_SECTION_ALIGN(static enet_tx_bd_struct_t txBuffDescrip_1[ENET_TXBD_NUM], FSL_ENET_BUFF_ALIGNMENT);
-    SDK_ALIGN(static rx_buffer_t rxDataBuff_1[ENET_RXBD_NUM], FSL_ENET_BUFF_ALIGNMENT);
-    SDK_ALIGN(static tx_buffer_t txDataBuff_1[ENET_TXBD_NUM], FSL_ENET_BUFF_ALIGNMENT);
-
-    ethernetif_1.RxBuffDescrip = &(rxBuffDescrip_1[0]);
-    ethernetif_1.TxBuffDescrip = &(txBuffDescrip_1[0]);
-    ethernetif_1.RxDataBuff = &(rxDataBuff_1[0]);
-    ethernetif_1.TxDataBuff = &(txDataBuff_1[0]);
-
-    return ethernetif_init(netif, &ethernetif_1, 1U, (ethernetif_config_t *)netif->state);
+    return low_level_init(netif, enetConfig);
 }
 
 
-bool enet_link(uint32_t phyAddress){
-	bool status = false;
-	PHY_GetLinkStatus(ENET2,phyAddress,&status);
-	return status;
-		
-}
-
-bool enet_phy_init(const ethernetif_config_t *ethernetifConfig){
-	uint32_t sysClock,status;
+bool ethernet_link_check(enet_port_type type){
+	bool link = false;
+//	HAL_Phy_S *driver;
+	struct ethernetif *ethernetif = &ethernetif_arr[type];
 	
-	sysClock = CLOCK_GetFreq(ethernetifConfig->clockName);
-    status = PHY_PreInit(ENET2, ethernetifConfig->phyAddress, sysClock);
+	if(ethernetif->base == NULL)
+		return false;
 	
-	if (kStatus_Success == status)
-    {
+//	driver = HAL_GetPhyDriver(ethernetif->config->drivType);
+//	driver->getLink(ethernetif->base,ethernetif->config->phyAddress,&link);
+	HAL_PhyGetLink(ethernetif->config->drivType,&link);
+	
+	return link;
+}
+
+
+bool ethernet_auto_negotiation_check(enet_port_type type){
+//	HAL_Phy_S *driver;
+	struct ethernetif *ethernetif = &ethernetif_arr[type];
+	
+	if(ethernetif->base == NULL)
+		return false;
+	
+//	driver = HAL_GetPhyDriver(ethernetif->config->drivType);
+//	if(driver->getAutoNegotiation(ethernetif->base,ethernetif->config->phyAddress) == kStatus_Success){
+//		return true;
+//	}
+	if(HAL_PhyGetAutoNegotiation(ethernetif->config->drivType) == kStatus_Success){
 		return true;
-    }
-	
+	}
 	return false;
 }
 
-bool enet_phy_check_auto_negotiation(uint32_t phyAddress){
-	return PHY_CheckAutoNegotiation(ENET2,phyAddress);
+void ethernet_irq_ctrl(enet_port_type type,bool enable){
+	struct ethernetif *ethernetif = &ethernetif_arr[type];
+	uint32_t interrupt = kENET_RxFrameInterrupt | kENET_TxFrameInterrupt | kENET_TxBufferInterrupt;
+
+	if(ethernetif->base == NULL)
+		return;
+
+	ENET_SetIRQ(ethernetif->base,interrupt,enable);
 }
-#endif /* FSL_FEATURE_SOC_*_ENET_COUNT */

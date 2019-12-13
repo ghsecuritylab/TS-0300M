@@ -23,7 +23,8 @@
  *        - if 0, host ehci driver is disable.
  *        - if greater than 0, host ehci driver is enable.
  */
-#define USB_HOST_CONFIG_EHCI (2U)
+//#define USB_HOST_CONFIG_EHCI (2U)
+#define USB_HOST_CONFIG_EHCI (1U)
 
 /*!
  * @brief host ohci instance count, meantime it indicates ohci enable or disable.
@@ -194,7 +195,8 @@
  *        - if 0, host HUB class driver is disable.
  *        - if greater than 0, host HUB class driver is enable.
  */
-#define USB_HOST_CONFIG_HUB (1U)
+//#define USB_HOST_CONFIG_HUB (1U)
+#define USB_HOST_CONFIG_HUB (0U)
 
 /*!
  * @brief host HID class instance count, meantime it indicates HID class enable or disable.
@@ -215,21 +217,24 @@
  *        - if 0, host CDC class driver is disable.
  *        - if greater than 0, host CDC class driver is enable.
  */
-#define USB_HOST_CONFIG_CDC (1U)
+//#define USB_HOST_CONFIG_CDC (1U)
+#define USB_HOST_CONFIG_CDC (0U)
 
 /*!
  * @brief host AUDIO class instance count, meantime it indicates AUDIO class enable or disable.
  *        - if 0, host AUDIO class driver is disable.
  *        - if greater than 0, host AUDIO class driver is enable.
  */
-#define USB_HOST_CONFIG_AUDIO (1U)
+//#define USB_HOST_CONFIG_AUDIO (1U)
+#define USB_HOST_CONFIG_AUDIO (0U)
 
 /*!
  * @brief host PHDC class instance count, meantime it indicates PHDC class enable or disable.
  *        - if 0, host PHDC class driver is disable.
  *        - if greater than 0, host PHDC class driver is enable.
  */
-#define USB_HOST_CONFIG_PHDC (1U)
+//#define USB_HOST_CONFIG_PHDC (1U)
+#define USB_HOST_CONFIG_PHDC (0U)
 
 /*!
  * @brief host printer class instance count, meantime it indicates printer class enable or disable.

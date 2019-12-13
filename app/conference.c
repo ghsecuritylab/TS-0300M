@@ -11,30 +11,35 @@
  *  @description
  *
  **/
-/*******************************************************************************
-* permission
-******************************************************************************/
-#define LICENSE_ACCESS_UNIT_INFO
 
 /*******************************************************************************
  * includes
  ******************************************************************************/
 #include "stdarg.h"
+#include "stdio.h"
+#include "string.h"
+
+/* HAL */
+#include "hal_gpio.h"
+
 /* OS */
 #include "FreeRTOS.h"
 #include "semphr.h"
 #include "timers.h"
 
 /* API */
-#include "app_common.h"
+#include "app.h"
 #include "data_queue.h"
 #include "ram.h"
+#include "usb_disk.h"
+#include "audio.h"
 
 /* APP */
 #include "conference.h"
 #include "wired_unit.h"
 #include "wifi_unit.h"
 #include "external_ctrl.h"
+#include "screen.h"
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
@@ -42,66 +47,56 @@
 #define CONFERENCE_TASK_STACK_SIZE						(2048)
 #define CONFERENCE_TASK_PRIORITY						(17)
 
-#define NOTICE_QUEUE_LENGTH								(100)
+#define NOTICE_QUEUE_LENGTH								(128)
 #define NOTICE_QUEUE_SIZE								(sizeof(void *))
 
-/**************************************** 会议执行操作 ******************************************************/
+/* WIFI单元ID转换   ，WIFI单元ID从0x3000开始 */
+#define WIFI_ID(_id)									(_id + 0x3000)
 
-#define EXCUTE(_prot)									do{_prot}while(0)
+/* 单元指令(type 或 cmd)与参数(ph,pl)合并拓展到32位，并加上标志位，方便在同时处理两个类型的单元的指令时区分或避免数字重复
+	第一个字节为设备类型表示 第二个字节为指令(type或cmd) 第三、四个字节是参数(ph,pl)*/
+#define WIRED_CMD(_type,_ph,_pl)						( 0x80000000 | (_type << 16) | (_ph << 8) | _pl)
+#define WIFI_CMD(_cmd,_ph,_pl)							( 0x40000000 | (_cmd << 16) | (_ph << 8) | _pl)
 
-#define CONF_PROT(_dest,_id,_type,_ph,_pl,_ch,_sec,_exlen,_exdata) 	\
-		    if((_dest & sPC) || (_dest & sWeb) || (_dest & sUartCtrl)) 	\
-				ExternalCtrl.transWithExData(_dest,Protocol.conference(&confProt,_id,_type,_ph,_pl,_ch,_sec),_exlen,(uint8_t *)_exdata);	\
-		    if(_dest & sWiredUnit)	\
-		        WiredUnit.transWithExData(Protocol.conference(&confProt,_id,_type,_ph,_pl,_ch,_sec),_exlen,(uint8_t *)_exdata);		\
+#if 0
+/* 判断投票模式是否需要签到 */
+#define IS_VOTE_NEED_SIGN(_mode)						(_mode == Key3First_Sign_vote 		 || _mode == Key3Last_Sign_vote 		||   	\
+														 _mode == Key5First_Sign_Select 	 || _mode == Key5Last_Sign_Select  		||  	\
+														 _mode == Key5First_Sign_Rate		 || _mode == Key5Last_Sign_Rate			||  	\
+														 _mode == Key2First_Sign_CustomTerm  || _mode == Key2Last_Sign_CustomTerm	||  	\
+														 _mode == Key3First_Sign_CustomTerm  || _mode == Key3Last_Sign_CustomTerm	||  	\
+														 _mode == Key4First_Sign_CustomTerm  || _mode == Key4Last_Sign_CustomTerm	||  	\
+														 _mode == Key5First_Sign_CustomTerm  || _mode == Key5Last_Sign_CustomTerm	||  	\
+														 _mode == Key3First_Sign_Satisfaction|| _mode == Key3Last_Sign_Satisfaction)
 
-#define WIFI_PROT(_dest,_id,_type,_ph,_pl,_exlen,_exdata)	\
-			if(_dest & sWifiUnit)	\
-				WifiUnit.transWithExData(Protocol.wifiUnit(&wifiProt,_id,_type,_ph,_pl),_exlen,(uint8_t *)_exdata);	\
+/* 判断投票模式是否第一次有效 */
+#define IS_VOTE_FIRST_VALID(_mode)						(_mode == Key3First_Sign_vote 		 || _mode == Key3First_NoSign_vote		||		\
+														 _mode == Key5First_Sign_Select 	 || _mode == Key5First_NoSign_Select   	||  	\
+														 _mode == Key5First_Sign_Rate		 || _mode == Key5First_NoSign_Rate		||  	\
+														 _mode == Key2First_Sign_CustomTerm  || _mode == Key2First_NoSign_CustomTerm||  	\
+														 _mode == Key3First_Sign_CustomTerm  || _mode == Key3First_NoSign_CustomTerm||  	\
+														 _mode == Key4First_Sign_CustomTerm  || _mode == Key4First_NoSign_CustomTerm||  	\
+														 _mode == Key5First_Sign_CustomTerm  || _mode == Key5First_NoSign_CustomTerm||  	\
+														 _mode == Key3First_Sign_Satisfaction|| _mode == Key3First_NoSign_Satisfaction)
 
-
-#define EXE_CONFERENCE_MODE()							EXCUTE(	CONF_PROT(EX_CTRL_DEST|sWiredUnit,WHOLE_BROADCAST_ID,BASIC_MSG,CONFERENCE_MODE,START_CONFERENCE_MODE,null,null,null,null) \
-																WIFI_PROT(sWifiUnit,null,null,null,null,null,null))
-																
-
-																
-#define EXE_EDIT_ID_MODE()								EXCUTE(	CONF_PROT(EX_CTRL_DEST|sWiredUnit,WHOLE_BROADCAST_ID,BASIC_MSG,EDIT_ID_MODE,START_EDIT_ID_MODE,null,null,null,null) \
-																WIFI_PROT(sWifiUnit,null,null,null,null,null,null))
-
-#define EXE_BROADCAST_MODE_NUM(_mode,_num)				EXCUTE(	CONF_PROT(EX_CTRL_DEST|sWiredUnit,MODE_BROADCAST_ID,STATE_MSG,_mode,_num,null,null,null,null) \
-																WIFI_PROT(sWifiUnit,null,null,null,null,null,null))
-																
-#define EXE_RESPOND_MODE_NUM(_dest,_mode,_num)			EXCUTE(	CONF_PROT(_dest,MODE_BROADCAST_ID,STATE_MSG,_mode,_num,null,null,null,null))
-
-/* 开关话筒相关执行命令 */
-#define EXE_RPS_OPEN_MIC(_id,_ch)						EXCUTE(	CONF_PROT(EX_CTRL_DEST|sWiredUnit,_id,BASIC_MSG,CONFERENCE_MODE,RPS_OPEN_MIC,_ch,null,null,null))
-#define EXE_RPS_CLOSE_MIC(_id)							EXCUTE(	CONF_PROT(EX_CTRL_DEST|sWiredUnit,_id,BASIC_MSG,CONFERENCE_MODE,RPS_CLOSE_MIC,null,null,null,null))
-#define EXE_CHM_OPEN_MIC(_id,_ch)						EXCUTE(	CONF_PROT(EX_CTRL_DEST|sWiredUnit,_id,BASIC_MSG,CONFERENCE_MODE,CHM_OPEN_MIC,_ch,null,null,null))
-#define EXE_CHM_CLOSE_MIC(_id)							EXCUTE(	CONF_PROT(EX_CTRL_DEST|sWiredUnit,_id,BASIC_MSG,CONFERENCE_MODE,CHM_CLOSE_MIC,null,null,null,null))
-#define EXE_MIC_WAIT(_id)								EXCUTE(	CONF_PROT(EX_CTRL_DEST|sWiredUnit,_id,BASIC_MSG,CONFERENCE_MODE,MIC_WAIT,null,null,null,null))
-#define EXE_MIC_DISWAIT(_id)							EXCUTE(	CONF_PROT(EX_CTRL_DEST|sWiredUnit,_id,BASIC_MSG,CONFERENCE_MODE,MIC_DISWAIT,null,null,null,null))
-#define EXE_MIC_FULL(_dest,_id)							EXCUTE(	CONF_PROT(_dest,_id,BASIC_MSG,CONFERENCE_MODE,MIC_CHANNEL_FULL,null,null,null,null))
-#define EXE_APPLY_OPEN_MIC(_id)							EXCUTE(	CONF_PROT(EX_CTRL_DEST|sWiredUnit,APPLY_OPEN_MIC_ID,APPLY_MSG,(_id >> 8),(_id && 0xFF),null,null,null,null))
-#define EXE_REVOKE_APPLY(_id)							EXCUTE(	CONF_PROT(EX_CTRL_DEST|sWiredUnit,REVOKE_APPLY_ID,APPLY_MSG,(_id >> 8),(_id && 0xFF),null,null,null,null))
+#endif
 
 
-#define EXE_REPORT_ONLINE_UNIT(_dest,_id,_attr)			EXCUTE(	CONF_PROT(_dest,_id,PC_MSG,ONLINE_UNIT,_attr,null,null,null,null))
-#define EXE_SCAN_UNIT_END(_dest,_type,_num)				EXCUTE(	CONF_PROT(_dest,WHOLE_BROADCAST_ID,PC_MSG,SCAN_ONLINE_UNIT,SCAN_UNIT_END,_type,_num,null,null))
+/* 音乐列表最大长度 */
+#define MUSIC_FILE_LIST_MAX_LEN						(64)
 
-/* 签到相关执行命令 */
-#define EXE_SIGN_MODE()									EXCUTE(	CONF_PROT(EX_CTRL_DEST|sWiredUnit,WHOLE_BROADCAST_ID,BASIC_MSG,SIGN_MODE,START_SIGN_MODE,null,null,null,null) \
-																WIFI_PROT(sWifiUnit,null,null,null,null,null,null))
-#define EXE_END_SIGN_MODE()								EXCUTE(	CONF_PROT(sWiredUnit,WHOLE_BROADCAST_ID,BASIC_MSG,SIGN_MODE,END_SIGN_MODE,null,null,null,null))
-#define EXE_SIGNED_NUM(_total,_num)						EXCUTE(	CONF_PROT(sWiredUnit,RESULT_MSG_ID(RES_SIGN_NUM),RESULT_MSG,(_total >> 8),(_total && 0xFF),null,_num,null,null)	\
-																WIFI_PROT(sWifiUnit,null,null,null,null,null,null))
-#define EXE_UNIT_SIGNED(_id)							EXCUTE(	CONF_PROT(EX_CTRL_DEST,_id,BASIC_MSG,SIGN_MODE,UNIT_SIGN_IN,null,null,null,null))	
-#define EXE_CONTROL_UNIT_SIGN(_id)						EXCUTE(	CONF_PROT(sWiredUnit,_id,BASIC_MSG,SIGN_MODE,CONTROL_UNIT_SIGN,null,null,null,null))	
-#define EXE_SUPPLEMENT_SIGN(_id)						EXCUTE(	CONF_PROT(sWiredUnit,_id,BASIC_MSG,SIGN_MODE,SUPPLEMENT_SIGN,null,null,null,null))	
-#define EXE_UNIT_SUPPLEMENT_SIGN(_id)					EXCUTE(	CONF_PROT(EX_CTRL_DEST,_id,BASIC_MSG,SIGN_MODE,UNIT_SUPPLEMENT_SIGN,null,null,null,null))	
+/*************************************  Instructions  *******************************************/
 
 
-#define EXE_CONFIRM_ID(_id,_mac)						EXCUTE(	CONF_PROT(sWiredUnit,WHOLE_BROADCAST_ID,POLLING_MSG,EDIT_ID_POLLING,CONFIRM_ID,null,_id,sizeof(Network_Mac_S),_mac))
-#define EXE_CURRENT_ID(_id)								EXCUTE(	CONF_PROT(sWiredUnit,WHOLE_BROADCAST_ID,POLLING_MSG,EDIT_ID_POLLING,CURRENT_ID,null,_id,null,null))
+typedef enum {
+    tOpenMic,
+    tCloseMic,
+    tWaiting,
+    tDisWait,
+    tMicFull,
+    tMicApply,
+    tRevokeApply,
+} MicControlType_EN;
 
 /*******************************************************************************
  * Prototypes
@@ -113,23 +108,36 @@ static void Conference_UnitOnlineNum(UnitOnlineNum *onlineNum);
 static SysMode_EN Conference_GetSysMode(void);
 static uint16_t Conference_GetCurrentEditedID(void);
 static UnitInfo_S *Conference_WiredUnitInfo(void);
+static UnitInfo_S *Conference_WifiUnitInfo(void);
+static ConfSysInfo_S Conference_GetConfSysInfo(void);
 
 
 /* 内部调用 */
 static void Conference_NoticeProcessTask(void *pvParameters);
 static void Conference_MessageProcess(Notify_S *notify);
+static void Conference_WifiUnitMessageProcess(Notify_S *notify);
+
+static void Conference_ScreenPageSwitch(uint8_t page);
+static void Conference_ScreenMessageProcess(Notify_S *notify);
 
 static void Conference_ResetAudioChannel(UnitType_EN type);
 static uint8_t Conference_GetAudioChannel(UnitType_EN type);
 static void Conference_GiveAudioChannel(UnitType_EN type,uint8_t ch);
 
-static void Conference_WiredOpenMic(uint16_t id, uint8_t type);
-static void Conference_WiredCloseMic(uint16_t id, uint8_t type);
-static void Conference_WiredCloseAllMic(UnitAttr_EN attr);
-static void Conference_WiredOutlineAllUnit(void);
-static void Conference_WiredClearApply(void);
+static void Conference_SignInstruction(uint16_t id,UnitType_EN type,uint32_t cmd,uint16_t totalNum,uint16_t curNum);
+static void Conference_MicCtrlInstruction(uint16_t id, UnitType_EN type,UnitAttr_EN attr, MicControlType_EN ctrlType,uint8_t channel);
+static void Conference_MicControl(uint16_t id, UnitType_EN type, uint32_t cmd);
+
+
+static void Conference_CloseAllMic(UnitType_EN type,UnitAttr_EN attr);
+static void Conference_OfflineAllUnit(void);
+static void Conference_ClearApplyMic(UnitType_EN type);
 static void Conference_ChangeSysMode(SysMode_EN mode);
-static void Conference_ChairmanPriority(uint16_t id);
+static void Conference_ChairmanPriority(UnitType_EN type,uint16_t id);
+
+static void Conference_UsbStateListener(status_t sta);
+static void Conference_AudioStateListener(AudState_S *sta);
+
 
 static void Conference_OpenMicListDebug(void);
 
@@ -142,25 +150,11 @@ static void Conference_ConfirmUnitNum(TimerHandle_t xTimer);
 /* 会议通知队列 */
 static QueueHandle_t noticeQueue;
 
-/* 会议系统通讯协议 */
-static ConfProtocol_S confProt;
-
-/* WIFI单元通讯协议 */
-static WifiUnitProtocol_S wifiProt;
-
-/* 系统模式 */
-static SysMode_EN sysMode;
-
-/* 话筒模式 */
-static MicMode_EN	micMode;
-
-/* 当前编辑ID(编ID) */
-static uint16_t currentEditID;
-
-/* 签到总人数 */
-static uint16_t totalSignNum;
-/* 当前签到人数 */
-static uint16_t currentSignNum;
+///* 会议系统通讯协议 */
+//static ConfProtocol_S confProt;
+//
+///* WIFI单元通讯协议 */
+//static WifiUnitProtocol_S wifiProt;
 
 /* 单元信息保存堆栈
 总大小为最大单元数+1 因为单元没有0号,方便索引 */
@@ -172,45 +166,91 @@ static struct {
 /* 在线话筒数 */
 static UnitOnlineNum OnlineNum;
 
-/* 允许开话筒数 - 有线单元 */
-static uint8_t	wiredAllowOpen;
+/* 主机系统信息 */
+static ConfSysInfo_S SysInfo;
 
-/* 可等待话筒数 - 有线单元
-(可等待数量和允许开话筒数量相等) */
-static uint8_t	wiredAllowWait;
+/* 全数字（有线）主席机队列 */
+static DataQueueHandler_S WiredChmMicQueue;
 
-/* 主席机队列 */
-static DataQueueHandler_S chmMicQueue;
+/* 全数字（有线）代表机队列 */
+static DataQueueHandler_S WiredRpsMicQueue;
 
-/* 代表机队列 */
-static DataQueueHandler_S rpsMicQueue;
+/* 全数字（有线）等待(申请)队列 */
+static DataQueueHandler_S WiredWaitQueue;
 
-/* 等待(申请)队列 */
-static DataQueueHandler_S waitQueue;
+/* 全数字（有线）音频通道队列 */
+static DataQueueHandler_S WiredChannelQueue;
 
-/* 音频通道队列 */
-static DataQueueHandler_S channelQueue;
+/* WIFI 主席机队列 */
+static DataQueueHandler_S WifiChmMicQueue;
+
+/* WIFI 代表机队列 */
+static DataQueueHandler_S WifiRpsMicQueue;
+
+/* WIFI 等待(申请)队列 */
+static DataQueueHandler_S WifiWaitQueue;
+
+/* WIFI 音频通道队列 */
+static DataQueueHandler_S WifiChannelQueue;
+
 
 #ifdef	CONFIRM_UNIT_NUM
 /* 确认话筒数量定时器 */
-static TimerHandle_t cfmUnitNumTimer;
+static TimerHandle_t ConfirmUnitNumTimer;
 #endif
 
 
+/* 投票模式码（全数字协议） */
+static const uint8_t VoteModeCode[] = {
+    KEY3_LAST_NOSIGN_VOTE, KEY3_LAST_SIGN_VOTE, KEY3_FIRST_NOSIGN_VOTE, KEY3_FIRST_SIGN_VOTE,
+    KEY5_LAST_NOSIGN_SELECT, KEY5_LAST_SIGN_SELECT, KEY5_FIRST_NOSIGN_SELECT, KEY5_FIRST_SIGN_SELECT,
+    KEY5_LAST_NOSIGN_RATE, KEY5_LAST_SIGN_RATE, KEY5_FIRST_NOSIGN_RATE, KEY5_FIRST_SIGN_RATE,
+    KEY2_FIRST_SIGN_CUSTOM, KEY2_FIRST_NOSIGN_CUSTOM, KEY2_LAST_SIGN_CUSTOM, KEY2_LAST_NOSIGN_CUSTOM,
+    KEY3_FIRST_SIGN_CUSTOM, KEY3_FIRST_NOSIGN_CUSTOM, KEY3_LAST_SIGN_CUSTOM, KEY3_LAST_NOSIGN_CUSTOM,
+    KEY4_FIRST_SIGN_CUSTOM, KEY4_FIRST_NOSIGN_CUSTOM, KEY4_LAST_SIGN_CUSTOM, KEY4_LAST_NOSIGN_CUSTOM,
+    KEY5_FIRST_SIGN_CUSTOM, KEY5_FIRST_NOSIGN_CUSTOM, KEY5_LAST_SIGN_CUSTOM, KEY5_LAST_NOSIGN_CUSTOM,
+    KEY3_LAST_NOSIGN_SATISFACTION, KEY3_LAST_SIGN_SATISFACTION, KEY3_FIRST_NOSIGN_SATISFACTION, KEY3_FIRST_SIGN_SATISFACTION
+};
 
-/* API 函数指针 */
+/* 记录当前显示页面 */
+static uint8_t ScreenCurrentPage = 0;
+
+
+/* USB音频录放控制句柄 */
+static struct {
+    /* MCU连接上U盘 */
+    bool mcuConnectUsb;
+    /* 音频录放状态 */
+    AudStaType_EN audSta;
+	/* 录音或放音时间 */
+	uint32_t runtime;
+	/* 录音文件 */
+	char recFile[25];
+    /* 当前播放音乐索引 */
+    uint8_t playIndex;
+    /* 音乐文件数量 */
+    uint8_t musicFileNum;
+    /* 音乐文件列表 */
+    FILINFO *musicFile[MUSIC_FILE_LIST_MAX_LEN];
+} UsbAudio;
+
+
+
+/* API  */
 Conference_S Conference = {
     .launch = Conference_Launch,
     .notify = Conference_Notify,
     .getOnlineNum = Conference_UnitOnlineNum,
     .getSysMode = Conference_GetSysMode,
     .getCurrentEditId = Conference_GetCurrentEditedID,
-
     .wiredUnitInfo = Conference_WiredUnitInfo,
+    .wifiUnitInfo = Conference_WifiUnitInfo,
+    .getConfSysInfo = Conference_GetConfSysInfo,
 };
 /*******************************************************************************
  * Code
  ******************************************************************************/
+
 
 /**
 * @Name  		Conference_Launch
@@ -225,22 +265,41 @@ static void Conference_Launch(void)
 {
     noticeQueue = xQueueCreate(NOTICE_QUEUE_LENGTH,NOTICE_QUEUE_SIZE);
 
+    memset(&UnitInfo,0,sizeof(UnitInfo));
+
+    memset(&UsbAudio,0,sizeof(UsbAudio));
+
+    SysInfo.micMode = kMode_Mic_Fifo;
+
+    SysInfo.wiredAllowOpen = WIRED_UNIT_MAX_ALLWO_OPEN;
+    SysInfo.wiredAllowWait = WIRED_UNIT_MAX_ALLWO_OPEN;
+    WiredChmMicQueue = DataQueue.creat(WIRED_UNIT_MAX_ALLWO_OPEN,sizeof(uint16_t));
+    WiredRpsMicQueue = DataQueue.creat(WIRED_UNIT_MAX_ALLWO_OPEN,sizeof(uint16_t));
+    WiredWaitQueue = DataQueue.creat(WIRED_UNIT_MAX_ALLWO_OPEN,sizeof(uint16_t));
+    WiredChannelQueue = DataQueue.creat(WIRED_UNIT_MAX_ALLWO_OPEN,sizeof(uint8_t));
+
+    SysInfo.wifiAllowOpen = WIFI_UNIT_MAX_ALLWO_OPEN;
+    SysInfo.wifiAllowWait = WIFI_UNIT_MAX_ALLWO_OPEN;
+    WifiChmMicQueue = DataQueue.creat(WIFI_UNIT_MAX_ALLWO_OPEN,sizeof(uint16_t));
+    WifiRpsMicQueue = DataQueue.creat(WIFI_UNIT_MAX_ALLWO_OPEN,sizeof(uint16_t));
+    WifiWaitQueue = DataQueue.creat(WIFI_UNIT_MAX_ALLWO_OPEN,sizeof(uint16_t));
+    WifiChannelQueue = DataQueue.creat(WIFI_UNIT_MAX_ALLWO_OPEN,sizeof(uint8_t));
+
+    /* 复位单元音频通道队列 */
+    Conference_ResetAudioChannel(tWired);
+    Conference_ResetAudioChannel(tWifi);
+
+    /* 设置USB状态监听 */
+    UsbDisk.setListener(Conference_UsbStateListener);
+
+    /* 音频录放状态监听 */
+    Audio.setListener(Conference_AudioStateListener);
+
     if (xTaskCreate(Conference_NoticeProcessTask, "NoticeProcessTask", CONFERENCE_TASK_STACK_SIZE, null, CONFERENCE_TASK_PRIORITY, null) != pdPASS) {
         debug("create host task error\r\n");
     }
 
-    memset(&UnitInfo,0,sizeof(UnitInfo));
-
-    micMode = mFifo;
-    wiredAllowOpen = WIRED_UNIT_MAX_ALLWO_OPEN;
-    wiredAllowWait = WIRED_UNIT_MAX_ALLWO_OPEN;
-
-    chmMicQueue = DataQueue.creat(WIRED_UNIT_MAX_ALLWO_OPEN,sizeof(uint16_t));
-    rpsMicQueue = DataQueue.creat(WIRED_UNIT_MAX_ALLWO_OPEN,sizeof(uint16_t));
-    waitQueue = DataQueue.creat(WIRED_UNIT_MAX_ALLWO_OPEN,sizeof(uint16_t));
-    channelQueue = DataQueue.creat(WIRED_UNIT_MAX_ALLWO_OPEN,sizeof(uint8_t));
-
-    Conference_ResetAudioChannel(tWired);
+//	DevLaunchMute = xTimerCreate("DevLaunchMute", const TickType_t xTimerPeriodInTicks, const UBaseType_t uxAutoReload, void * const pvTimerID, TimerCallbackFunction_t pxCallbackFunction)
 }
 
 
@@ -274,23 +333,34 @@ static void Conference_NoticeProcessTask(void *pvParameters)
 {
     Notify_S *notify;
 
-
     debug("Conference notice process task launch!\r\n");
 #ifdef	CONFIRM_UNIT_NUM
-	/* 初始化确认话筒数量定时器 */
-    cfmUnitNumTimer = xTimerCreate("ConfirmUnitNum",3000,pdFALSE,null,Conference_ConfirmUnitNum);
+    /* 初始化确认话筒数量定时器 */
+    ConfirmUnitNumTimer = xTimerCreate("ConfirmUnitNum",3000,pdFALSE,null,Conference_ConfirmUnitNum);
 #endif
     while(1) {
         xQueueReceive(noticeQueue, &notify, MAX_NUM);
 
-		/* 判断通知来源 */
-		if(notify->nSrc & (EX_CTRL_DEST | sWiredUnit)){
-			/* 通知来源为外部控制及有线单元 */	
-			Conference_MessageProcess(notify);
-		}
+        /* 判断通知来源 */
+        if(notify->nSrc & (EX_CTRL_DEST | kType_NotiSrc_WiredUnit)) {
+            /* 通知来源为外部控制及有线单元 */
+            Conference_MessageProcess(notify);
+        }
+
+        else if(notify->nSrc & kType_NotiSrc_WifiUnit) {
+            /* 通知来源为WIFI单元 */
+            Conference_WifiUnitMessageProcess(notify);
+        }
+
+        else if(notify->nSrc & kType_NotiSrc_ScreenCtrl) {
+            /* 通知来源为屏幕控制 */
+            Conference_ScreenMessageProcess(notify);
+        }
         FREE(notify);
     }
 }
+
+
 
 #ifdef	CONFIRM_UNIT_NUM
 /**
@@ -302,21 +372,22 @@ static void Conference_NoticeProcessTask(void *pvParameters)
 *
 * @return
 */
-static void Conference_ConfirmUnitNum(TimerHandle_t xTimer){
-	uint16_t chmNum = 0, rpsNum = 0, i;
+static void Conference_ConfirmUnitNum(TimerHandle_t xTimer)
+{
+    uint16_t chmNum = 0, rpsNum = 0, i;
 
-	for(i = 0;i < WIRED_UNIT_MAX_ONLINE_NUM;i++){
-		if(UnitInfo.wired[i].online){
-			if(UnitInfo.wired[i].attr == aChairman)	chmNum++;
-			else if(UnitInfo.wired[i].attr == aRepresentative) rpsNum++;
-		}
-	}
+    for(i = 0; i < WIRED_UNIT_MAX_ONLINE_NUM; i++) {
+        if(UnitInfo.wired[i].online) {
+            if(UnitInfo.wired[i].attr == aChairman)	chmNum++;
+            else if(UnitInfo.wired[i].attr == aRepresentative) rpsNum++;
+        }
+    }
 
-	if(OnlineNum.wiredChm != chmNum || OnlineNum.wiredRps != rpsNum){
-		OnlineNum.wiredChm = chmNum;
-		OnlineNum.wiredRps = rpsNum;
-		debug("Online num is update: wiredUnit(CHM) = %d , wiredUnit(RPS) = %d\r\n",OnlineNum.wiredChm,OnlineNum.wiredRps);
-	}
+    if(OnlineNum.wiredChm != chmNum || OnlineNum.wiredRps != rpsNum) {
+        OnlineNum.wiredChm = chmNum;
+        OnlineNum.wiredRps = rpsNum;
+        debug("Online num is update: wiredUnit(CHM) = %d , wiredUnit(RPS) = %d\r\n",OnlineNum.wiredChm,OnlineNum.wiredRps);
+    }
 }
 #endif
 
@@ -333,6 +404,8 @@ static void Conference_MessageProcess(Notify_S *notify)
 {
     uint16_t id;
     uint8_t type, *para;
+    ConfProtocol_S confProt;
+    WifiUnitProtocol_S wifiProt;
 
     ERR_CHECK(notify != null, return);
 
@@ -341,16 +414,23 @@ static void Conference_MessageProcess(Notify_S *notify)
     para = &notify->prot.conference.ph;
 
 #if 1
-    debug("Conference Msg: id = %X, type = %X,para{ %X , %X , %X , %X , %X }",id,type,para[0],para[1],para[2],para[3],para[4]);
-	if(notify->exLen){
-		uint8_t i;
-	
-		debug(" exData{ ");
-		for(i=0;i<notify->exLen;i++)
-			debug(" %X ,",(&notify->exDataHead)[i]);
-		debug(" } ");
-	}
-	debug("\r\n");
+    if(true) {
+        char srcStr[10];
+        sprintf(srcStr,"%s",notify->nSrc == kType_NotiSrc_WiredUnit ? "WiredUnit" :  \
+                notify->nSrc == kType_NotiSrc_PC ? "PC" : \
+                notify->nSrc == kType_NotiSrc_Web ? "WEB" : \
+                notify->nSrc == kType_NotiSrc_UartCtrl ? "UART" : "unknow");
+        debug("Conference notify from %s: id = %X, type = %X,para{ %X , %X , %X , %X , %X }",srcStr,id,type,para[0],para[1],para[2],para[3],para[4]);
+        if(notify->exLen) {
+            uint8_t i;
+
+            debug(" exData{ ");
+            for(i=0; i<notify->exLen; i++)
+                debug(" %X ,",(&notify->exDataHead)[i]);
+            debug(" } ");
+        }
+        debug("\r\n");
+    }
 #endif
 
     switch(type) {
@@ -362,32 +442,43 @@ static void Conference_MessageProcess(Notify_S *notify)
         /* 会议模式 0x00 */
         case CONFERENCE_MODE: {
             switch(cmd) {
-            case START_CONFERENCE_MODE:{
-				Conference_ChangeSysMode(mConference);
-			}break;	
+            case START_CONFERENCE_MODE: {
+                Conference_ChangeSysMode(kMode_Conference);
+            }
+            break;
             /*主席申请开话筒*/
             case CHM_OPEN_MIC:
             /*代表申请开话筒*/
             case RPS_OPEN_MIC:
-            /* 同意开话筒 */
-            case AGREE_OPEN_MIC:
-            /* 不同意开话筒 */
-            case DISAGREE_OPEN_MIC: {
-                Conference_WiredOpenMic(id,cmd);
-            }
-            break;
-
+            /* 话筒撤销等待 */
+            case MIC_DISWAIT:
             /*主席申请关话筒*/
             case CHM_CLOSE_MIC:
             /*代表申请关话筒*/
             case RPS_CLOSE_MIC: {
-                Conference_WiredCloseMic(id,cmd);
+                if(id > 0x3000 && (notify->nSrc & EX_CTRL_DEST))
+                    Conference_MicControl(id - WIFI_UNIT_START_ID, tWifi, WIRED_CMD(cmd,0,0));
+                else
+                    Conference_MicControl(id, tWired, WIRED_CMD(cmd,0,0));
+            }
+            break;
+
+            /* 同意开话筒 */
+            case AGREE_OPEN_MIC:
+            /* 不同意开话筒 */
+            case DISAGREE_OPEN_MIC: {
+                if(notify->nSrc & EX_CTRL_DEST && id > 0x3000 )
+                    Conference_MicControl(id - WIFI_UNIT_START_ID, tWifi, WIRED_CMD(cmd,0,0));
+                else if(notify->nSrc & EX_CTRL_DEST && id > 0 && id < 4096 )
+                    Conference_MicControl(id, tWired, WIRED_CMD(cmd,0,0));
+                else if(notify->nSrc == kType_NotiSrc_WifiUnit || notify->nSrc == kType_NotiSrc_WiredUnit)
+                    Conference_MicControl(null, (UnitType_EN)null, WIRED_CMD(cmd,0,0));
             }
             break;
 
             /* 主席优先权 */
             case CHM_PRIORITY: {
-                Conference_ChairmanPriority(id);
+                Conference_ChairmanPriority(tWired,id);
             }
             break;
 
@@ -398,104 +489,313 @@ static void Conference_MessageProcess(Notify_S *notify)
                 else if(UnitInfo.wired[id].attr == aRepresentative)
                     OnlineNum.wiredRps++;
 #ifdef	CONFIRM_UNIT_NUM
-				/* 打开定时器，3S后数一下话筒列表数量对不对，防止话筒重复上线 */
-				xTimerStart(cfmUnitNumTimer,0);
+                /* 打开定时器，3S后数一下话筒列表数量对不对，防止话筒重复上线 */
+                xTimerStart(ConfirmUnitNumTimer,0);
 #endif
-				debug("WiredUnit(%s) id = %d online ( Chm num = %d , Rps num = %d )\r\n",UnitInfo.wired[id].attr == aChairman ? "CHM":"RPS",id,OnlineNum.wiredChm,OnlineNum.wiredRps);
+                debug("WiredUnit(%s) id = %d online ( Chm num = %d , Rps num = %d )\r\n",UnitInfo.wired[id].attr == aChairman ? "CHM":"RPS",id,OnlineNum.wiredChm,OnlineNum.wiredRps);
             }
             break;
 
             /*话筒掉线*/
             case UNIT_OFFLINE: {
                 if(UnitInfo.wired[id].attr == aChairman) {
-                    Conference_WiredCloseMic(id,CHM_CLOSE_MIC);
+                    Conference_MicControl(id, tWired, WIRED_CMD(CHM_CLOSE_MIC,0,0));
+
                     OnlineNum.wiredChm--;
                 } else if(UnitInfo.wired[id].attr == aRepresentative) {
-                    Conference_WiredCloseMic(id,RPS_CLOSE_MIC);
+                    Conference_MicControl(id, tWired, WIRED_CMD(RPS_CLOSE_MIC,0,0));
                     OnlineNum.wiredRps--;
                 }
 #ifdef	CONFIRM_UNIT_NUM
-				xTimerStart(cfmUnitNumTimer,0);
+                xTimerStart(ConfirmUnitNumTimer,0);
 #endif
-				debug("WiredUnit(%s) id = %d offline ( Chm num = %d , Rps num = %d )\r\n",UnitInfo.wired[id].attr == aChairman ? "CHM":"RPS",id,OnlineNum.wiredChm,OnlineNum.wiredRps);
+                debug("WiredUnit(%s) id = %d offline ( Chm num = %d , Rps num = %d )\r\n",UnitInfo.wired[id].attr == aChairman ? "CHM":"RPS",id,OnlineNum.wiredChm,OnlineNum.wiredRps);
             }
             break;
             }
         }
         break;
-		
-		/* 签到模式 0x01 */
-		case SIGN_MODE:{
-			uint16_t num;			
-		
-			switch(cmd){
-				/* 进入签到模式 */
-				case START_SIGN_MODE:{
-					totalSignNum = (para[3] << 8) & para[4];
-					currentSignNum = 0;
-					EXE_SIGNED_NUM(totalSignNum, currentSignNum);
-					Conference_ChangeSysMode(mSign);
-				}
-				break;
-				/* 单元签到 */
-				case UNIT_SIGN_IN:{
-					/* 单元未签到 */
-					if(!UnitInfo.wired[id].sign){
-						UnitInfo.wired[id].sign = true;
-						currentSignNum++;
-						EXE_SIGNED_NUM(totalSignNum, currentSignNum);
-						EXE_UNIT_SIGNED(id);
-						
-						/* 如果单元签到来自外部控制，则为控制签到 */
-						if(notify->nSrc & (sPC | sWeb | sUartCtrl))
-							EXE_CONTROL_UNIT_SIGN(id);
-					}
-				}
-				break;
-				/* 结束签到 */
-				case END_SIGN_MODE:{
-					EXE_END_SIGN_MODE();
-					Conference_ChangeSysMode(mConference);
-				}
-				break;
 
-				/* 补充签到 */
-				case SUPPLEMENT_SIGN:{
-					EXE_SUPPLEMENT_SIGN(id);
-				}
-				break;
+        /* 签到模式 0x01 */
+        case SIGN_MODE: {
+            switch(cmd) {
+            /* 进入签到模式 */
+            case START_SIGN_MODE: {
+                SysInfo.totalSignNum = (uint16_t)((para[3] << 8) | para[4]);
+                SysInfo.currentSignNum = 0;
 
-				/* 单元应答补充签到 */
-				case UNIT_SUPPLEMENT_SIGN:{
-					if(!UnitInfo.wired[id].sign){
-						UnitInfo.wired[id].sign = true;
-						currentSignNum++;
-						EXE_UNIT_SUPPLEMENT_SIGN(id);
-					}
-					
-				}break;
-			}
-		}break;
+                Conference_ChangeSysMode(kMode_Sign);
+            }
+            break;
+            /* 单元签到 */
+            case UNIT_SIGN_IN: {
+                /* 单元签到 */
+                if((notify->nSrc & kType_NotiSrc_WiredUnit) && !UnitInfo.wired[id].sign) {
+                    UnitInfo.wired[id].sign = true;
+                    SysInfo.currentSignNum++;
+                    Conference_SignInstruction(id,tWired,WIRED_CMD(UNIT_SIGN_IN,0,0),null,null);
+                    Conference_SignInstruction(null,(UnitType_EN)null,WIRED_CMD(START_SIGN_MODE,0,0),SysInfo.totalSignNum,SysInfo.currentSignNum);
+                }
+                /* 如果单元签到来自外部控制，则为控制签到 */
+                else if(notify->nSrc & (kType_NotiSrc_PC | kType_NotiSrc_Web | kType_NotiSrc_UartCtrl)) {
+                    /* 控制有线单元签到 */
+                    if(id > 0 && id <= WIRED_UNIT_MAX_ONLINE_NUM && !UnitInfo.wired[id].sign) {
+                        Conference_SignInstruction(id,tWired,WIRED_CMD(CONTROL_UNIT_SIGN,0,0),null,null);
+                    }
+                    /* 控制WIFI单元签到 */
+                    else if(id > WIFI_UNIT_START_ID && id <= WIFI_UNIT_START_ID + WIFI_UNIT_MAX_ONLINE_NUM  \
+                            && !UnitInfo.wifi[id - WIFI_UNIT_START_ID].sign) {
+                        Conference_SignInstruction(id - WIFI_UNIT_START_ID,tWifi,WIFI_CMD(ControlSign_MtoU_D,0,0),null,null);
+                    }
+                }
+            }
+            break;
+            /* 结束签到 */
+            case END_SIGN_MODE: {
+                WiredUnit.transmit(Protocol.conference(&confProt,WHOLE_BROADCAST_ID,BASIC_MSG,SIGN_MODE,END_SIGN_MODE,null,null));
+                WifiUnit.transmit(kMode_Wifi_Multicast,Protocol.wifiUnit(&wifiProt,0,EnterSignMode_MtoU_G,1,null));
+                Conference_ChangeSysMode(kMode_Conference);
+            }
+            break;
+
+            /* 补充签到 */
+            case SUPPLEMENT_SIGN: {
+                /* 有线单元补充签到 */
+                if(id > 0 && id <= WIRED_UNIT_MAX_ONLINE_NUM && !UnitInfo.wired[id].sign) {
+                    Conference_SignInstruction(id,tWired,WIRED_CMD(SUPPLEMENT_SIGN,0,0),null,null);
+                }
+                /* WIFI单元补充签到*/
+                else if(id > WIFI_UNIT_START_ID && id <= WIFI_UNIT_START_ID + WIFI_UNIT_MAX_ONLINE_NUM  \
+                        && !UnitInfo.wifi[id - WIFI_UNIT_START_ID].sign) {
+                    Conference_SignInstruction(id - WIFI_UNIT_START_ID,tWifi,WIFI_CMD(SupplementSign_MtoU_D,0,0),null,null);
+                }
+            }
+            break;
+
+            /* 单元应答补充签到 */
+            case UNIT_SUPPLEMENT_SIGN: {
+                if((notify->nSrc & kType_NotiSrc_WiredUnit) && !UnitInfo.wired[id].sign) {
+                    UnitInfo.wired[id].sign = true;
+                    SysInfo.currentSignNum++;
+                    Conference_SignInstruction(id,tWired,WIRED_CMD(UNIT_SUPPLEMENT_SIGN,0,0),null,null);
+                }
+            }
+            break;
+            }
+        }
+        break;
+
+        /* 投票模式 0x02 */
+        case VOTE_MODE: {
+            uint8_t voteResult;
+
+            switch(cmd) {
+            /* PC发起的各类型投票、表决、评级、满意度 */
+            case KEY3_FIRST_SIGN_VOTE:
+                SysInfo.voteMode = Key3First_Sign_vote;
+                goto startVote;
+            case KEY3_FIRST_NOSIGN_VOTE:
+                SysInfo.voteMode = Key3First_NoSign_vote;
+                goto startVote;
+            case KEY3_LAST_SIGN_VOTE:
+                SysInfo.voteMode = Key3Last_Sign_vote;
+                goto startVote;
+            case KEY3_LAST_NOSIGN_VOTE:
+                SysInfo.voteMode = Key3Last_NoSign_vote;
+                goto startVote;
+            case KEY5_FIRST_SIGN_SELECT:
+                SysInfo.voteMode = Key5First_Sign_Select;
+                goto startVote;
+            case KEY5_FIRST_NOSIGN_SELECT:
+                SysInfo.voteMode = Key5First_NoSign_Select;
+                goto startVote;
+            case KEY5_LAST_SIGN_SELECT:
+                SysInfo.voteMode = Key5Last_Sign_Select;
+                goto startVote;
+            case KEY5_LAST_NOSIGN_SELECT:
+                SysInfo.voteMode = Key5Last_NoSign_Select;
+                goto startVote;
+            case KEY5_FIRST_SIGN_RATE:
+                SysInfo.voteMode = Key5First_Sign_Rate;
+                goto startVote;
+            case KEY5_FIRST_NOSIGN_RATE:
+                SysInfo.voteMode = Key5First_NoSign_Rate;
+                goto startVote;
+            case KEY5_LAST_SIGN_RATE:
+                SysInfo.voteMode = Key5Last_Sign_Rate;
+                goto startVote;
+            case KEY5_LAST_NOSIGN_RATE:
+                SysInfo.voteMode = Key5Last_NoSign_Rate;
+                goto startVote;
+            case KEY2_FIRST_SIGN_CUSTOM:
+                SysInfo.voteMode = Key2First_Sign_CustomTerm;
+                goto startVote;
+            case KEY2_FIRST_NOSIGN_CUSTOM:
+                SysInfo.voteMode = Key2First_NoSign_CustomTerm;
+                goto startVote;
+            case KEY2_LAST_SIGN_CUSTOM:
+                SysInfo.voteMode = Key2Last_Sign_CustomTerm;
+                goto startVote;
+            case KEY2_LAST_NOSIGN_CUSTOM:
+                SysInfo.voteMode = Key2Last_NoSign_CustomTerm;
+                goto startVote;
+            case KEY3_FIRST_SIGN_CUSTOM:
+                SysInfo.voteMode = Key3First_Sign_CustomTerm;
+                goto startVote;
+            case KEY3_FIRST_NOSIGN_CUSTOM:
+                SysInfo.voteMode = Key3First_NoSign_CustomTerm;
+                goto startVote;
+            case KEY3_LAST_SIGN_CUSTOM:
+                SysInfo.voteMode = Key3Last_Sign_CustomTerm;
+                goto startVote;
+            case KEY3_LAST_NOSIGN_CUSTOM:
+                SysInfo.voteMode = Key3Last_NoSign_CustomTerm;
+                goto startVote;
+            case KEY4_FIRST_SIGN_CUSTOM:
+                SysInfo.voteMode = Key4First_Sign_CustomTerm;
+                goto startVote;
+            case KEY4_FIRST_NOSIGN_CUSTOM:
+                SysInfo.voteMode = Key4First_NoSign_CustomTerm;
+                goto startVote;
+            case KEY4_LAST_SIGN_CUSTOM:
+                SysInfo.voteMode = Key4Last_Sign_CustomTerm;
+                goto startVote;
+            case KEY4_LAST_NOSIGN_CUSTOM:
+                SysInfo.voteMode = Key4Last_NoSign_CustomTerm;
+                goto startVote;
+            case KEY5_FIRST_SIGN_CUSTOM:
+                SysInfo.voteMode = Key5First_Sign_CustomTerm;
+                goto startVote;
+            case KEY5_FIRST_NOSIGN_CUSTOM:
+                SysInfo.voteMode = Key5First_NoSign_CustomTerm;
+                goto startVote;
+            case KEY5_LAST_SIGN_CUSTOM:
+                SysInfo.voteMode = Key5Last_Sign_CustomTerm;
+                goto startVote;
+            case KEY5_LAST_NOSIGN_CUSTOM:
+                SysInfo.voteMode = Key5Last_NoSign_CustomTerm;
+                goto startVote;
+            case KEY3_FIRST_SIGN_SATISFACTION:
+                SysInfo.voteMode = Key3First_Sign_Satisfaction;
+                goto startVote;
+            case KEY3_FIRST_NOSIGN_SATISFACTION:
+                SysInfo.voteMode = Key3First_NoSign_Satisfaction;
+                goto startVote;
+            case KEY3_LAST_SIGN_SATISFACTION:
+                SysInfo.voteMode = Key3Last_Sign_Satisfaction;
+                goto startVote;
+            case KEY3_LAST_NOSIGN_SATISFACTION:
+                SysInfo.voteMode = Key3Last_NoSign_Satisfaction;
+                goto startVote;
+                {
+startVote:
+                    Conference_ChangeSysMode(kMode_Vote);
+                }
+                break;
+
+            /* 主席发起 */
+            case VOTE_LAUNCH_BY_CHAIRMAN: {
+                if(notify->nSrc & kType_NotiSrc_WiredUnit || notify->nSrc & kType_NotiSrc_WifiUnit) {
+
+                }
+            }
+            break;
+
+            /* 结束表决 */
+            case FINISH_VOTE: {
+                if(SysInfo.sysMode == kMode_Vote) {
+                    Conference_ChangeSysMode(kMode_Conference);
+                }
+            }
+            break;
+
+            /* 单元投票、表决、选举结果 */
+            case 0x25:
+                voteResult = 1;//赞成
+                goto unitVoted;
+            case 0x26:
+                voteResult = 2;//弃权
+                goto unitVoted;
+            case 0x27:
+                voteResult = 3;//反对
+                goto unitVoted;
+            case 0x45:
+                voteResult = 1;//--
+                goto unitVoted;
+            case 0x46:
+                voteResult = 2;//-
+                goto unitVoted;
+            case 0x47:
+                voteResult = 3;//0
+                goto unitVoted;
+            case 0x48:
+                voteResult = 4;//+
+                goto unitVoted;
+            case 0x49:
+                voteResult = 5;//++
+                goto unitVoted;
+            case 0x4A:
+                voteResult = 1;//很不满意(五键)/不满意(三键)
+                goto unitVoted;
+            case 0x4B:
+                voteResult = 2;//不满意(五键)/一般(三键)
+                goto unitVoted;
+            case 0x4C:
+                voteResult = 3;//一般(五键)/满意(三键)
+                goto unitVoted;
+            case 0x4D:
+                voteResult = 4;//满意(五键)
+                goto unitVoted;
+            case 0x4E:
+                voteResult = 5;//很满意(五键)
+                goto unitVoted;
+            case 0x65:
+                voteResult = 1;//自定义表决选项1
+                goto unitVoted;
+            case 0x66:
+                voteResult = 2;//自定义表决选项2
+                goto unitVoted;
+            case 0x67:
+                voteResult = 3;//自定义表决选项3
+                goto unitVoted;
+            case 0x68:
+                voteResult = 4;//自定义表决选项4
+                goto unitVoted;
+            case 0x69:
+                voteResult = 5;//自定义表决选项5
+                {
+unitVoted:
+                    if(notify->nSrc & kType_NotiSrc_WiredUnit && SysInfo.sysMode == kMode_Vote) {
+                        /* 如果投票类型为需要先签到，而单元未进行签到 */
+//                        if(IS_VOTE_NEED_SIGN(SysInfo.voteMode) && UnitInfo.wired[id].sign != true)
+//                            break;
+//                        if(IS_VOTE_FIRST_VALID(SysInfo.voteMode) && UnitInfo.wired[id].vote != null)
+//                            break;
+
+                        UnitInfo.wired[id].vote = voteResult;
+                        ExternalCtrl.transmit(EX_CTRL_DEST,Protocol.conference(&confProt,id,BASIC_MSG,VOTE_MODE,voteResult,null,null));
+                    }
+                }
+                break;
+
+            }
+        }
+        break;
 
         /* 编ID模式 0x03 */
         case EDIT_ID_MODE: {
             switch(cmd) {
-			/* 开始编ID */
-            case START_EDIT_ID_MODE: {
-                currentEditID = (notify->prot.conference.sec == 0 ? 1 : notify->prot.conference.sec);
-				Conference_ChangeSysMode(mEditID);
-            }
-            break;
-			/* 单元确认当前ID为本机ID */
+
+            /* 单元确认当前ID为本机ID */
             case UNIT_CONFIRM_ID: {
                 Network_Mac_S *devMac = (Network_Mac_S *)&notify->exDataHead;
 
-                debug("confirm id = %d , dev mac = %X:%X:%X:%X:%X:%X \r\n",id,devMac->mac0,devMac->mac1,devMac->mac2,devMac->mac3,devMac->mac4,devMac->mac5);
-                if(id == currentEditID) {
-					/* 回复单元确定 */
-                    EXE_CONFIRM_ID(id,devMac);
-                    currentEditID = (currentEditID + 1) > WIRED_UNIT_MAX_ONLINE_NUM ? 1 : currentEditID + 1;
-                    EXE_CURRENT_ID(currentEditID);
+                debug("Wired confirm id = %d , dev mac = %X:%X:%X:%X:%X:%X \r\n",id,devMac->mac0,devMac->mac1,devMac->mac2,devMac->mac3,devMac->mac4,devMac->mac5);
+                if(id == SysInfo.wiredCurEditID) {
+                    /* 回复单元确定 */
+                    WiredUnit.transWithExData(Protocol.conference(&confProt,WHOLE_BROADCAST_ID,POLLING_MSG,EDIT_ID_POLLING,CONFIRM_ID,null,id),NETWORK_MAC_SIZE,(uint8_t *)devMac);
+                    SysInfo.wiredCurEditID = (SysInfo.wiredCurEditID + 1) > WIRED_UNIT_MAX_ONLINE_NUM ? 1 : SysInfo.wiredCurEditID + 1;
+                    WiredUnit.transmit(Protocol.conference(&confProt,WHOLE_BROADCAST_ID,POLLING_MSG,EDIT_ID_POLLING,CURRENT_ID,null,SysInfo.wiredCurEditID));
                 }
             }
             break;
@@ -508,33 +808,50 @@ static void Conference_MessageProcess(Notify_S *notify)
     /* 状态消息 0x82*/
     case STATE_MSG: {
         switch(id) {
-        case MODE_BROADCAST_ID: {
+        case MODE_BROADCAST_ID:
+        case WIFI_MODE_BROADCAST_ID: {
             uint8_t mode = para[0], num = para[1];
 
-            if(mode >= mFifo && mode <= mApply)
-                micMode = (MicMode_EN)mode;
-            if(num >= 1 && num <= WIRED_UNIT_MAX_ALLWO_OPEN) {
-                wiredAllowOpen = num;
-                wiredAllowWait = num;
+            if(mode >= kMode_Mic_Fifo && mode <= kMode_Mic_Apply)
+                SysInfo.micMode = (MicMode_EN)mode;
+
+            /* 设置有线单元 */
+            if(id == MODE_BROADCAST_ID && num >= 1 && num <= WIRED_UNIT_MAX_ALLWO_OPEN) {
+                SysInfo.wiredAllowOpen = num;
+                SysInfo.wiredAllowWait = num;
             }
+
+            /* 设置WIFI单元 */
+            else if(id == WIFI_MODE_BROADCAST_ID && num >= 1 && num <= WIFI_UNIT_MAX_ALLWO_OPEN) {
+                SysInfo.wifiAllowOpen = num;
+                SysInfo.wifiAllowWait = num;
+            }
+
             /* 关闭所有单元 */
-            Conference_WiredCloseAllMic(aChairman);
-            Conference_WiredCloseAllMic(aRepresentative);
+            Conference_CloseAllMic(tWired,aChairman);
+            Conference_CloseAllMic(tWired,aRepresentative);
+            Conference_CloseAllMic(tWifi,aChairman);
+            Conference_CloseAllMic(tWifi,aRepresentative);
 
             /* 清除申请队列 */
-            Conference_WiredClearApply();
+            Conference_ClearApplyMic(tWired);
+            Conference_ClearApplyMic(tWifi);
 
-            /* 清除等待队列 */
-            DataQueue.empty(waitQueue);
 
             /* 广播模式及数量 */
-            EXE_BROADCAST_MODE_NUM(micMode,wiredAllowOpen);
+            /* 发送到单元 */
+            WiredUnit.transmit(Protocol.conference(&confProt,MODE_BROADCAST_ID,STATE_MSG,SysInfo.micMode,SysInfo.wiredAllowOpen,null,null));
+            WifiUnit.transmit(kMode_Wifi_Multicast,Protocol.wifiUnit(&wifiProt,0,ChangeMicManage_MtoU_G,SysInfo.micMode,SysInfo.wifiAllowOpen));
+            /* 回复外部控制设备确认状态 */
+            ExternalCtrl.transmit(EX_CTRL_DEST,Protocol.conference(&confProt,MODE_BROADCAST_ID,STATE_MSG,SysInfo.micMode,SysInfo.wiredAllowOpen,null,null));
+            ExternalCtrl.transmit(EX_CTRL_DEST,Protocol.conference(&confProt,WIFI_MODE_BROADCAST_ID,STATE_MSG,SysInfo.micMode,SysInfo.wifiAllowOpen,null,null));
         }
         break;
+
         }
     }
     break;
-    /* PC通讯消息 0x86*/
+    /* 通讯消息 0x86*/
     case PC_MSG: {
         uint8_t cmd = para[0];
 
@@ -561,18 +878,74 @@ static void Conference_MessageProcess(Notify_S *notify)
             break;
         /* 0x0F */
         case QUERY_HOST: {
-            EXE_RESPOND_MODE_NUM(notify->nSrc,micMode,wiredAllowOpen);
+            /* 回复当前会议模式及有线单元最大话筒数 */
+            ExternalCtrl.transmit(notify->nSrc,Protocol.conference(&confProt,MODE_BROADCAST_ID,STATE_MSG,SysInfo.micMode,SysInfo.wiredAllowOpen,null,null));
+            /* 回复当前会议模式及WIFI单元最大话筒数 */
+            ExternalCtrl.transmit(notify->nSrc,Protocol.conference(&confProt,WIFI_MODE_BROADCAST_ID,STATE_MSG,SysInfo.micMode,SysInfo.wifiAllowOpen,null,null));
         }
         break;
-        case SCAN_ONLINE_UNIT: {
-            uint16_t i;
+        /* 下发自定义表决项 0x24 */
+        case CUSTOM_VOTE_ITEM: {
+            uint8_t item = para[1];
 
-            for(i = 1; i <= WIRED_UNIT_MAX_ONLINE_NUM; i++) {
-                if(UnitInfo.wired[i].online) {
-                    EXE_REPORT_ONLINE_UNIT(notify->nSrc,i,UnitInfo.wired[i].attr);
+            if(item >= 1 && item <= 5) {
+                uint8_t *customItem;
+
+                customItem = MALLOC(3 + notify->exLen);
+                memcpy(&customItem[0],&para[2],3);
+                if(notify->exLen > 0)
+                    memcpy(&customItem[3],&notify->exDataHead,notify->exLen);
+
+                /* 目前只有WIFI单元有自定义表决 */
+                WifiUnit.transWithExData(kMode_Wifi_Multicast,Protocol.wifiUnit(&wifiProt,0,PCUpdateCustomTerm_MtoU_G,item,0),3 + notify->exLen,customItem);
+                FREE(customItem);
+            }
+        }
+        break;
+
+        /* 发起编ID   	0x2F*/
+        case PC_EDIT_ID: {
+            if(para[1] == PC_START_EDIT_ID) {
+                /* 开始编ID */
+                uint8_t startID = (notify->prot.conference.sec == 0 ? 1 : notify->prot.conference.sec);
+
+                SysInfo.wiredCurEditID = startID;
+                SysInfo.wifiCurEditID = WIFI_ID(startID);
+                Conference_ChangeSysMode(kMode_EditID);
+            }
+
+            else if(para[1] == PC_STOP_EDIT_ID) {
+                Conference_ChangeSysMode(kMode_Conference);
+                WifiUnit.transmit(kMode_Wifi_Multicast,Protocol.wifiUnit(&wifiProt,0,MasterStarUp_MtoU_G,0,0));
+            }
+        }
+        break;
+        /* 扫描在线单元ID 0x30 */
+        case SCAN_ONLINE_UNIT: {
+            /* 上传在线有线单元 */
+            for(id = 1; id <= WIRED_UNIT_MAX_ONLINE_NUM; id++) {
+                if(UnitInfo.wired[id].online) {
+                    ExternalCtrl.transmit(notify->nSrc,Protocol.conference(&confProt,id,PC_MSG,ONLINE_UNIT,UnitInfo.wired[id].attr,null,null));
                 }
             }
-            EXE_SCAN_UNIT_END(notify->nSrc,tWired,(OnlineNum.wiredChm+OnlineNum.wiredRps));
+            ExternalCtrl.transmit(notify->nSrc,Protocol.conference(&confProt,WHOLE_BROADCAST_ID,PC_MSG,SCAN_ONLINE_UNIT,SCAN_UNIT_END,tWired, \
+                                  (OnlineNum.wiredChm + OnlineNum.wiredRps)));
+
+            /* 上传在线WIFI单元 */
+            for(id = 1; id <= WIFI_UNIT_MAX_ONLINE_NUM; id++) {
+                if(UnitInfo.wifi[id].online) {
+                    ExternalCtrl.transmit(notify->nSrc,Protocol.conference(&confProt,WIFI_ID(id),PC_MSG,ONLINE_UNIT,UnitInfo.wifi[id].attr,null,null));
+                }
+            }
+            ExternalCtrl.transmit(notify->nSrc,Protocol.conference(&confProt,WHOLE_BROADCAST_ID,PC_MSG,SCAN_ONLINE_UNIT,SCAN_UNIT_END,tWifi, \
+                                  (OnlineNum.wifiChm + OnlineNum.wifiRps)));
+        }
+        break;
+
+        case QUERY_PRIOR_SIGN:
+        case QUERY_PRIOR_VOTE:
+        case QUERY_PRIOR_SCAN: {
+            ExternalCtrl.transmit(notify->nSrc,Protocol.conference(&confProt,WHOLE_BROADCAST_ID,PC_MSG,cmd,0x01,SysInfo.sysMode,null));
         }
         break;
         }
@@ -581,9 +954,8 @@ static void Conference_MessageProcess(Notify_S *notify)
     }
 }
 
-
 /**
-* @Name  		Conference_WiredOpenMic
+* @Name  		Conference_WifiUnitMessageProcess
 * @Author  		KT
 * @Description
 * @para
@@ -591,515 +963,1322 @@ static void Conference_MessageProcess(Notify_S *notify)
 *
 * @return
 */
-static void Conference_WiredOpenMic(uint16_t id, uint8_t para)
+static void Conference_WifiUnitMessageProcess(Notify_S *notify)
 {
-    uint8_t channel, chmMicNum, rpsMicNum, waitNum, index;
+    uint16_t id;
+    uint8_t cmd, ph,pl;
+    WifiUnitProtocol_S wifiProt;
+    ConfProtocol_S confProt;
 
-    ERR_CHECK(id > 0 && id <= WIRED_UNIT_MAX_ONLINE_NUM,return);
-    ERR_CHECK(UnitInfo.wired[id].online == true,return);
-    ERR_CHECK(!(para == CHM_OPEN_MIC && UnitInfo.wired[id].attr != aChairman),return);
-    ERR_CHECK(!(para == RPS_OPEN_MIC && UnitInfo.wired[id].attr != aRepresentative),return);
+    ERR_CHECK(notify != null, return);
+
+    id = notify->prot.wifi.id;
+    cmd = notify->prot.wifi.cmd;
+    ph = notify->prot.wifi.ph;
+    pl = notify->prot.wifi.pl;
+#if 1
+    debug("Wifi Unit Msg: id = %d, cmd = %d,ph = %d , pl = %d",id,cmd,ph,pl);
+    if(notify->exLen) {
+        uint8_t i;
+
+        debug(" exData{ ");
+        for(i=0; i<notify->exLen; i++)
+            debug(" %X,",(&notify->exDataHead)[i]);
+        debug(" } ");
+    }
+    debug("\r\n");
+#endif
+
+    switch(cmd) {
+
+    case RepPollUnitl_UtoM_D: {
+        switch(SysInfo.sysMode) {
+        case kMode_Sign: {
+            if((ph & 0x01) && !UnitInfo.wifi[id].sign) {
+                UnitInfo.wifi[id].sign = true;
+                SysInfo.currentSignNum++;
+                Conference_SignInstruction(id,tWifi,WIFI_CMD(RepPollUnitl_UtoM_D,kMode_Sign,0),null,null);
+                Conference_SignInstruction(null,(UnitType_EN)null,WIFI_CMD(EnterSignMode_MtoU_G,0,0),SysInfo.totalSignNum,SysInfo.currentSignNum);
+            }
+        }
+        break;
+
+        case kMode_Vote: {
+            uint8_t voteResult = pl;
+
+            /* 如果投票类型为需要先签到，而单元未进行签到 */
+//            if(IS_VOTE_NEED_SIGN(SysInfo.voteMode) && UnitInfo.wifi[id].sign != true)
+//                break;
+//            if(IS_VOTE_FIRST_VALID(SysInfo.voteMode) && UnitInfo.wifi[id].vote != null)
+//                break;
+
+            UnitInfo.wifi[id].vote = voteResult;
+            ExternalCtrl.transmit(EX_CTRL_DEST,Protocol.conference(&confProt,WIFI_ID(id),BASIC_MSG,VOTE_MODE,voteResult,null,null));
+        }
+        break;
+
+        default:
+            break;
+        }
+    }
+    break;
+
+    /* 单元上线 */
+    case RepApplyEnterSystm_MtoU_D: {
+        if(UnitInfo.wifi[id].attr == aChairman)
+            OnlineNum.wifiChm++;
+        else if(UnitInfo.wifi[id].attr == aRepresentative)
+            OnlineNum.wifiRps++;
+#ifdef	CONFIRM_UNIT_NUM
+        /* 打开定时器，3S后数一下话筒列表数量对不对，防止话筒重复上线 */
+        xTimerStart(ConfirmUnitNumTimer,0);
+#endif
+        debug("WifiUnit(%s) id = %d online ( Chm num = %d , Rps num = %d )\r\n",UnitInfo.wired[id].attr == aChairman ? "CHM":"RPS",id,OnlineNum.wiredChm,OnlineNum.wiredRps);
+    }
+    break;
+
+    /*单元机申请开话筒*/
+    case ApplyOpenMic_UtoM_D:
+        Conference_MicControl(id, tWifi, WIFI_CMD(cmd,0,0));
+        break;
+
+    /*单元机关开话筒*/
+    case UnitCloseMic_UtoM_D:
+        Conference_MicControl(id, tWifi, WIFI_CMD(cmd,0,0));
+        break;
+
+    /*单元机退出等待队列*/
+    case UnitGetoutWaitQuenen_UtoM_D:
+        Conference_MicControl(id, tWifi, WIFI_CMD(cmd,0,0));
+        break;
+
+    /*主席机执行优先权*/
+    case ChairExecutePriority_UtoM_D:
+        Conference_ChairmanPriority(tWifi,id);
+        break;
+
+    /*主席机（不）同意代表机开话筒*/
+    case ChairAgreeOpenOrNot_UtoM_D:
+        Conference_MicControl(0, tWifi, WIFI_CMD(ChairAgreeOpenOrNot_UtoM_D,ph,0));
+        break;
+
+    /*单元机茶水申请    */
+    case UnitApplyWater_UtoM_D:
+        break;
+
+
+    /*回复主机帮单元机补签到   */
+    case RepSupplementSign_UtoM_D:
+        Conference_SignInstruction(id,tWifi,WIFI_CMD(RepSupplementSign_UtoM_D,0,0), null, null);
+        break;
+
+    /*回复主席机发起签到   */
+    case RepChairStarupOrEndSign_MtoU_D:
+        break;
+
+    /*回复主席机发起表决   */
+    case RepChairStarupOrEndVote_MtoU_D:
+
+        break;
+
+    /*单元机以当前广播的ID作为本机ID   */
+    case UnitGraspIDUtoM_D: {
+        uint8_t *ip = &(&notify->exDataHead)[6],*mac = &(&notify->exDataHead)[0];
+        uint16_t confirmID = (uint16_t)(ph << 8) | pl;
+
+        debug("Wifi confirm ID = %d ip : %d.%d.%d.%d  mac : %X-%X-%X-%X-%X-%X \r\n",confirmID - 0x3000,ip[0],ip[1],ip[2],ip[3],mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+        if(confirmID == SysInfo.wifiCurEditID) {
+            memcpy(&UnitInfo.wifi[id].ip,ip,NETWORK_IP_SIZE);
+            memcpy(&UnitInfo.wifi[id].mac,mac,NETWORK_MAC_SIZE);
+            /* 回复单元确定 */
+            WifiUnit.transmit(kMode_Wifi_Unitcast,Protocol.wifiUnit(&wifiProt,id,ConfirmUnitIDMtoU_D,(confirmID >> 8),(confirmID & 0xFF)));
+            SysInfo.wifiCurEditID = (SysInfo.wifiCurEditID + 1) > WIFI_ID(WIFI_UNIT_MAX_ONLINE_NUM) ? WIFI_ID(1) : SysInfo.wifiCurEditID + 1;
+            WifiUnit.transmit(kMode_Wifi_Multicast,Protocol.wifiUnit(&wifiProt,0,EnterEditingIDMtoU_G,(SysInfo.wifiCurEditID >> 8),(SysInfo.wifiCurEditID & 0xFF)));
+        }
+    }
+    break;
+
+    case UnitCapacityStrChangeUtoM_D:
+        break;
+
+    case RepReadUnitMICSensitivity_UtoM_D:
+        break;
+
+//			case RepReadUnitMICEQ_UtoM_D:
+//			break;
+
+
+    default:
+        break;
+    }
+
+
+}
+
+/**
+* @Name  		Conference_ScreenPageSwitch
+* @Author  		KT
+* @Description
+* @para
+*
+*
+* @return
+*/
+static void Conference_ScreenPageSwitch(uint8_t page){
+	ScreenProtocol_S screenProt;
+	ScreenCurrentPage = page;
+	Screen.transmit(Protocol.screen(&screenProt,tType_Screen_Page,ScreenCurrentPage));
+}
+
+
+
+/**
+* @Name  		Conference_ScreenMessageProcess
+* @Author  		KT
+* @Description
+* @para
+*
+*
+* @return
+*/
+static void Conference_ScreenMessageProcess(Notify_S *notify)
+{
+    WifiUnitProtocol_S wifiProt;
+    ConfProtocol_S confProt;
+    ScreenProtocol_S screenProt;
+    ScreenProtType_EN type;
+    uint8_t *para, exData[25];
+
+    static UnitType_EN cfgWitchTypeUnit;
+
+    ERR_CHECK(notify != null, return);
+
+    type = notify->prot.screen.type;
+    para = notify->prot.screen.para;
+
+#if 1
+    debug("Screen Msg: type = %X, para{%X %X %X %X %X}",type,para[0],para[1],para[2],para[3],para[4]);
+    if(notify->exLen) {
+        uint8_t i;
+
+        debug(" exData{ ");
+        for(i=0; i<notify->exLen; i++)
+            debug(" %X,",(&notify->exDataHead)[i]);
+        debug(" } ");
+    }
+    debug("\r\n");
+#endif
+
+    switch(type) {
+    case tType_Screen_InterfaceRet: {
+        uint8_t reg = para[1];
+        uint8_t cmd = para[4];
+
+        switch(reg) {
+        case 0://出错返回功能
+            if(para[0]==0x01) {
+                switch(cmd) {
+                case 0x01://IP
+                    break;
+                case 0x02://网关
+                    break;
+                case 0x03://子网掩码
+                    break;
+                case 0x04://端口配置
+                    break;
+                case 0x05:
+                    break;
+                default:
+                    break;
+                }
+            }
+            break;
+        case 0x10://主界面中，屏向主机请求指令
+            switch(cmd) {
+            /* 会议模式 */
+            case 0x01: {
+                Conference_ScreenPageSwitch(System_Type_Page);
+            }
+            break;
+
+            /* 录音节界面 */
+            case 0x02: {
+                if(UsbAudio.mcuConnectUsb || UsbAudio.audSta == kStatus_Aud_Playing ||   \
+                   UsbAudio.audSta == kStatus_Aud_Pause || UsbAudio.audSta == kStatus_Aud_Recording) {
+                    switch(UsbAudio.audSta) {
+                    /* 切换暂停页面 */
+                    case kStatus_Aud_Idle:
+                    case kStatus_Aud_Pause: {
+                        Conference_ScreenPageSwitch(RECORD_CARD_PAUSE_Page);
+                    }
+                    break;
+                    /* 切换播放页面 */
+                    case kStatus_Aud_Playing: {
+                        char *name = UsbAudio.musicFile[UsbAudio.playIndex - 1]->fname;
+                        Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x03A0),strlen(name)+1,(uint8_t *)name);
+                        Conference_ScreenPageSwitch(RECORD_CARD_PLAY_Page);
+                    }
+                    break;
+                    /* 切换录音页面 */
+                    case kStatus_Aud_Recording: {
+                        Conference_ScreenPageSwitch(RECORD_CARD_RECOEDING_Page);
+                    }
+                    break;
+
+                    default:
+                        break;
+                    }
+                } 
+				else {
+                    Conference_ScreenPageSwitch(RECORD_CARD_INITING_Page);
+                }
+
+            }
+            break;
+
+            /* 系统状态 */
+            case 0x03: {
+                uint16_t num,year,mon,day;
+
+                /* 切换页面 */
+                Conference_ScreenPageSwitch(SysState_Page);
+
+                /* 更新有线单元在线总数 */
+                num = OnlineNum.wiredChm + OnlineNum.wiredRps;
+                exData[0]= (uint8_t)(num >> 8);
+                exData[1]= (uint8_t)(num & 0xFF);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0034),2,exData);
+
+                /* 更新有线主席机在线数量 */
+                exData[0]= (uint8_t)(OnlineNum.wiredChm >> 8);
+                exData[1]= (uint8_t)(OnlineNum.wiredChm & 0xFF);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0035),2,exData);
+
+                /* 更新有线代表机在线数量  */
+                exData[0]= (uint8_t)(OnlineNum.wiredRps >> 8);
+                exData[1]= (uint8_t)(OnlineNum.wiredRps & 0xFF);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0036),2,exData);
+
+
+                /* 更新无线单元在线总数 */
+                num = OnlineNum.wifiChm + OnlineNum.wifiRps;
+                exData[0]= (uint8_t)(num >> 8);
+                exData[1]= (uint8_t)(num & 0xFF);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0001),2,exData);
+
+                /* 更新无线主席机在线数量 */
+                exData[0]= (uint8_t)(OnlineNum.wifiChm >> 8);
+                exData[1]= (uint8_t)(OnlineNum.wifiChm & 0xFF);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0002),2,exData);
+
+                /* 更新无线代表机在线数量 */
+                exData[0]= (uint8_t)(OnlineNum.wifiRps >> 8);
+                exData[1]= (uint8_t)(OnlineNum.wifiRps & 0xFF);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0003),2,exData);
+
+
+                /* 更新译员机在线数量 */
+                exData[0]= (uint8_t)(OnlineNum.interpreter >> 8);
+                exData[1]= (uint8_t)(OnlineNum.interpreter & 0xFF);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0037),2,exData);
+
+                APP_GetBuildDate(&year, &mon, &day);
+
+                /* 更新显示当前系统版本号 */
+                sprintf((char *)&exData[0],"%s",APP_VERSION);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0039),sizeof(APP_VERSION),exData);
+
+                /* 更新显示代码编译日期 */
+                sprintf((char *)&exData[0],"%d%d%d",year,mon,day);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0080),8,exData);
+            }
+            break;
+
+            /* 编ID界面 */
+            case 0x04: {
+                /* 切换页面 */
+                Conference_ScreenPageSwitch(SetID_Page);
+                sprintf((char *)&exData[0],"%04d  ",1);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0022),6,exData);
+            }
+            break;
+
+            /* 中繁英版本 */
+            case 0x05: {
+                /* 切换页面 */
+                Conference_ScreenPageSwitch(SystemSet_Page);
+            }
+            break;
+
+            /*译员机*/
+            case 0x06: {
+                /* 切换页面 */
+                Conference_ScreenPageSwitch(StartTranSetID_Page);
+            }
+            break;
+            /* ID 模式 */
+            case 0x07: {
+                /* 切换页面 */
+                Conference_ScreenPageSwitch(SystemSet_Page);
+            }
+            break;
+            default:
+                break;
+            }
+            break;
+        /* 切换话筒模式(0x12)及数量(0x14) */
+        case 0x12:
+        case 0x14: {
+            uint8_t mode;
+
+            if(reg == 0x12) {
+                mode = cmd + 1;
+                if(mode >= kMode_Mic_Fifo && mode <= kMode_Mic_Apply)
+                    SysInfo.micMode = (MicMode_EN)mode;
+            } else if(reg == 0x14) {
+                /* 设置有线单元 */
+                if(cfgWitchTypeUnit == tWired && cmd >= 0 && cmd <= 3) {
+                    static const uint8_t Num[4] = {1,2,4,8};
+
+                    SysInfo.wiredAllowOpen = Num[cmd];
+                    SysInfo.wiredAllowWait = Num[cmd];
+                }
+
+                /* 设置WIFI单元 */
+                else if(cfgWitchTypeUnit == tWifi && cmd >= 0 && cmd <= 3) {
+                    static const uint8_t Num[4] = {1,2,4,6};
+
+                    SysInfo.wifiAllowOpen = Num[cmd];
+                    SysInfo.wifiAllowWait = Num[cmd];
+                }
+            }
+
+            /* 关闭所有单元 */
+            Conference_CloseAllMic(tWired,aChairman);
+            Conference_CloseAllMic(tWired,aRepresentative);
+            Conference_CloseAllMic(tWifi,aChairman);
+            Conference_CloseAllMic(tWifi,aRepresentative);
+
+            /* 清除申请队列 */
+            Conference_ClearApplyMic(tWired);
+            Conference_ClearApplyMic(tWifi);
+
+
+            /* 广播模式及数量 */
+            /* 发送到单元 */
+            WiredUnit.transmit(Protocol.conference(&confProt,MODE_BROADCAST_ID,STATE_MSG,SysInfo.micMode,SysInfo.wiredAllowOpen,null,null));
+            WifiUnit.transmit(kMode_Wifi_Multicast,Protocol.wifiUnit(&wifiProt,0,ChangeMicManage_MtoU_G,SysInfo.micMode,SysInfo.wifiAllowOpen));
+            /* 回复外部控制设备确认状态 */
+            ExternalCtrl.transmit(EX_CTRL_DEST,Protocol.conference(&confProt,MODE_BROADCAST_ID,STATE_MSG,SysInfo.micMode,SysInfo.wiredAllowOpen,null,null));
+            ExternalCtrl.transmit(EX_CTRL_DEST,Protocol.conference(&confProt,WIFI_MODE_BROADCAST_ID,STATE_MSG,SysInfo.micMode,SysInfo.wifiAllowOpen,null,null));
+        }
+        break;
+        case 0x2B:  //0 1 2 3无线会议模式中，切换话筒模式
+            break;
+
+        case 0x22:  //是否重启网络配置
+            break;
+        case 0x24:  //译员机模式配置
+            break;
+        case 0x26:  //译员机编ID
+            break;
+        case 0x2A:  //发起或者结束编ID
+            break;
+        case 0x16:  //屏发来低音
+            break;
+        case 0x18:  //屏发来高音
+            break;
+        case 0x20:  //屏发来背景音乐音量
+            break;
+        case 0x3A: { //系统设置
+            switch(cmd) {
+            /* 语言选择 */
+            case 0x01: {
+                /* 切换页面 */
+                Conference_ScreenPageSwitch(Language_Page);
+                exData[1] = SysInfo.language;
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0040),2,exData);
+            }
+            break;
+
+            /* 屏进入IP配置界面，此时需要主机更新显示 */
+            case 0x02: {
+                /* 切换页面 */
+                Conference_ScreenPageSwitch(IP_Page);
+
+                sprintf((char *)&exData[0],"192.168.1.123");
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0048),15,exData);
+
+                sprintf((char *)&exData[0],"192.168.12.123");
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0058),15,exData);
+
+                sprintf((char *)&exData[0],"192.168.123.123");
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0068),15,exData);
+
+            }
+            break;
+
+            /* 恢复出厂设置 */
+            case 0x03: {
+            } break;
+
+            /* 显示设置-亮度调节 */
+            case 0x04: {
+                /* 切换页面 */
+                Conference_ScreenPageSwitch(Display_Page);
+            }
+            break;
+
+            /* 编ID模式 */
+//            case 0x05:{
+//            	/* 切换页面 */
+//				Screen.transmit(Protocol.screen(&screenProt,tType_Screen_Page,ID_MODE_Page));
+//			} break;
+
+            /* 音量调节 */
+            case 0x06: {
+                /* 切换页面 */
+                Conference_ScreenPageSwitch(Volume_Page);
+            }
+            break;
+
+            /* 下传功能 */
+            case 0x07: {
+                /* 切换页面 */
+                Conference_ScreenPageSwitch(Sender_Sound_SW_Page);
+            }
+            break;
+
+            default:
+                break;
+            }
+        }
+        break;
+
+        /* 屏发来录音处理按键 */
+        case 0x3B:
+            switch(cmd) {
+            case 0x00://上一曲
+                Audio.previous();
+                break;
+
+            case 0x01://播放
+                Audio.playPause();
+                break;
+
+            case 0x02://下一曲
+                Audio.next();
+                break;
+
+            case 0x03://开始/停止录音
+            	if(UsbAudio.audSta == kStatus_Aud_Recording){
+					Audio.stopRec();
+					/* 切换到音频录播主页 */
+//					Conference_ScreenPageSwitch(RECORD_CARD_PAUSE_Page);
+					Conference_ScreenPageSwitch(RECORD_CARD_WAIT_RECORD_Page);
+				}
+				else if(UsbAudio.audSta == kStatus_Aud_Idle || UsbAudio.audSta == kStatus_Aud_Pause){
+					static uint16_t testNum = 1719;
+					char *name;
+					
+					Conference_ScreenPageSwitch(RECORD_CARD_WAIT_RECORD_Page);
+            		sprintf(UsbAudio.recFile,"%s%d","RE",testNum++);
+                	Audio.record(UsbAudio.recFile);
+
+					name = MALLOC(72);
+					strcpy(name,UsbAudio.recFile);
+                	Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x03A0),72,(uint8_t *)name);
+					FREE(name);
+				}
+                break;
+
+            case 0x04://返回
+                /* 切换页面 */
+                Conference_ScreenPageSwitch(Main_Munu_Page);
+                break;
+
+            case 0x05://暂停
+                Audio.playPause();
+                break;
+
+            }
+            break;
+
+        case 0x3C:
+            switch(cmd) {
+            case 0x01:
+                break;
+
+            case 0x02:
+                break;
+
+            default:
+                break;
+            }
+            break;
+
+        case 0x40: //屏发过来语言选择
+            break;
+        case 0x41://屏发来的下传功能设置
+            break;
+        case 0x44://屏发过来请求更新屏幕当前亮度值的
+            break;
+        case 0x45://屏发过来请求更新低音值的
+            break;
+        case 0x50: //屏发来的ID模式设置
+            break;
+        case 0x51: //屏发来重新编ID
+            break;
+        case 0x52:  //屏发来结束重新编ID
+            break;
+        case 0x54://屏发来会议主机类型选择返回
+            switch(cmd) {
+            /* 无线 */
+            case 0x00: {
+                static const uint8_t Reg[7] = {null,0,1,null,2,null,3};
+
+                cfgWitchTypeUnit = tWifi;
+
+                exData[0] = 0;
+                exData[1] = 1;
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0005),2,exData);
+
+                /* 切换页面 */
+                Conference_ScreenPageSwitch(ModeNum_Page);
+
+                exData[1] = SysInfo.micMode - 1;
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0012),2,exData);
+
+                exData[1] = Reg[SysInfo.wifiAllowOpen];
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0014),2,exData);
+            }
+            break;
+
+            /* 有线 */
+            case 0x01: {
+                static const uint8_t Reg[9] = {null,0,1,null,2,null,null,null,3};
+
+                cfgWitchTypeUnit = tWired;
+
+                exData[0] = 0;
+                exData[1] = 0;
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0005),2,exData);
+
+                /* 切换页面 */
+                Conference_ScreenPageSwitch(ModeNum_Page);
+
+                exData[1] = SysInfo.micMode - 1;
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0012),2,exData);
+
+                exData[1] = Reg[SysInfo.wiredAllowOpen];
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0014),2,exData);
+            }
+            break;
+            }
+            break;
+        case 0x55://屏发来升降话筒控制 20190819
+            switch(cmd) {
+            case 0x00://上升
+                break;
+            case 0x01://下降
+                break;
+            }
+            break;
+        default:
+            break;
+        }
+    }
+    break;
+
+    default:
+        break;
+
+    }
+
+}
+
+/**
+* @Name  		Conference_SignInstruction
+* @Author  		KT
+* @Description
+* @para
+*
+*
+* @return
+*/
+static void Conference_SignInstruction(uint16_t id,UnitType_EN type,uint32_t cmd,uint16_t totalNum,uint16_t curNum)
+{
+    ConfProtocol_S confProt;
+    WifiUnitProtocol_S wifiProt;
+
+    switch(cmd) {
+    /* 开始签到以及下发签到总数和签到当前数量 */
+    case WIRED_CMD(START_SIGN_MODE,0,0):
+    case WIFI_CMD(EnterSignMode_MtoU_G,0,0): {
+        uint8_t data[4] = {0},len = 0;
+
+        data[0] = (uint8_t)(totalNum >> 8);
+        data[1] = (uint8_t)(totalNum & 0xFF);
+        data[2] = (uint8_t)(curNum >> 8);
+        data[3] = (uint8_t)(curNum & 0xFF);
+        len = 4;
+        WiredUnit.transmit(Protocol.conference(&confProt,WHOLE_BROADCAST_ID,BASIC_MSG,SIGN_MODE,START_SIGN_MODE,null,null));
+        WiredUnit.transmit(Protocol.conference(&confProt,RESULT_MSG_ID(RES_SIGN_NUM),RESULT_MSG,data[0],data[1], data[2],data[3]));
+        WifiUnit.transWithExData(kMode_Wifi_Multicast,Protocol.wifiUnit(&wifiProt,0,EnterSignMode_MtoU_G,0,null),len,data);
+    }
+    break;
+
+    /* 单元签到 */
+    case WIRED_CMD(UNIT_SIGN_IN,0,0):
+    case WIFI_CMD(RepPollUnitl_UtoM_D,kMode_Sign,0): {
+        if(id != null) {
+            id = type == tWired ? id : WIFI_ID(id);
+            ExternalCtrl.transmit(EX_CTRL_DEST,Protocol.conference(&confProt,id,BASIC_MSG,SIGN_MODE,UNIT_SIGN_IN,null,null));
+        }
+    }
+    break;
+
+    /* 控制单元签到 */
+    case WIRED_CMD(CONTROL_UNIT_SIGN,0,0):
+    case WIFI_CMD(ControlSign_MtoU_D,0,0): {
+        if(type == tWired)
+            WiredUnit.transmit(Protocol.conference(&confProt,id,BASIC_MSG,SIGN_MODE,CONTROL_UNIT_SIGN,null,null));
+        else if(type == tWifi)
+            WifiUnit.transmit(kMode_Wifi_Unitcast,Protocol.wifiUnit(&wifiProt,id,ControlSign_MtoU_D,null,null));
+    }
+    break;
+
+    /* 补充签到 */
+    case WIRED_CMD(SUPPLEMENT_SIGN,0,0):
+    case WIFI_CMD(SupplementSign_MtoU_D,0,0): {
+        if(type == tWired)
+            WiredUnit.transmit(Protocol.conference(&confProt,id,BASIC_MSG,SIGN_MODE,SUPPLEMENT_SIGN,null,null));
+        else if(type == tWifi)
+            WifiUnit.transmit(kMode_Wifi_Unitcast,Protocol.wifiUnit(&wifiProt,id,SupplementSign_MtoU_D,null,null));
+    }
+    break;
+
+    /* 回复补充签到 */
+    case WIRED_CMD(UNIT_SUPPLEMENT_SIGN,0,0):
+    case WIFI_CMD(RepSupplementSign_UtoM_D,0,0): {
+        if(id != null) {
+            id = type == tWired ? id : WIFI_ID(id);
+            ExternalCtrl.transmit(EX_CTRL_DEST,Protocol.conference(&confProt,id,BASIC_MSG,SIGN_MODE,UNIT_SUPPLEMENT_SIGN,null,null));
+        }
+    }
+    break;
+    }
+
+}
+
+
+/**
+* @Name  		Conference_MicCtrlInstruction
+* @Author  		KT
+* @Description
+* @para
+*
+*
+* @return
+*/
+static void Conference_MicCtrlInstruction(uint16_t id, UnitType_EN type,UnitAttr_EN attr, MicControlType_EN ctrlType,uint8_t channel)
+{
+    ConfProtocol_S confProt;
+    WifiUnitProtocol_S wifiProt;
+    uint8_t data[5] = {0},len =0,arg = 0;
+
+
+    switch(ctrlType) {
+    /* 开话筒 */
+    case tOpenMic: {
+        arg = (attr == aChairman) ? CHM_OPEN_MIC : RPS_OPEN_MIC;
+        if(type == tWired) {
+            Protocol.conference(&confProt,id,BASIC_MSG,CONFERENCE_MODE,arg,channel,null);
+            WiredUnit.transmit(&confProt);
+            ExternalCtrl.transmit(EX_CTRL_DEST,&confProt);
+        } else if(type == tWifi) {
+            data[0] = channel;
+            len = 1;
+            WifiUnit.transWithExData(kMode_Wifi_Unitcast,Protocol.wifiUnit(&wifiProt,id,MasterOpenOrCloseMic_MtoU_D,0,null),len,data);
+            ExternalCtrl.transmit(EX_CTRL_DEST,Protocol.conference(&confProt,WIFI_ID(id),BASIC_MSG,CONFERENCE_MODE,arg,channel,null));
+        }
+
+    }
+    break;
+
+    /* 关话筒 */
+    case tCloseMic: {
+        arg = (attr == aChairman) ? CHM_CLOSE_MIC : RPS_CLOSE_MIC;
+        if(type == tWired) {
+            Protocol.conference(&confProt,id,BASIC_MSG,CONFERENCE_MODE,arg,null,null);
+            WiredUnit.transmit(&confProt);
+            ExternalCtrl.transmit(EX_CTRL_DEST,&confProt);
+        } else if(type == tWifi) {
+            ExternalCtrl.transmit(EX_CTRL_DEST,Protocol.conference(&confProt,WIFI_ID(id),BASIC_MSG,CONFERENCE_MODE,arg,null,null));
+            WifiUnit.transmit(kMode_Wifi_Unitcast,Protocol.wifiUnit(&wifiProt,id,MasterOpenOrCloseMic_MtoU_D,1,null));
+        }
+    }
+    break;
+
+    /* 话筒等待 */
+    case tWaiting: {
+        if(type == tWired) {
+            Protocol.conference(&confProt,id,BASIC_MSG,CONFERENCE_MODE,MIC_WAIT,null,null);
+            WiredUnit.transmit(&confProt);
+            ExternalCtrl.transmit(EX_CTRL_DEST,&confProt);
+        } else if(type == tWifi) {
+            ExternalCtrl.transmit(EX_CTRL_DEST,Protocol.conference(&confProt,WIFI_ID(id),BASIC_MSG,CONFERENCE_MODE,MIC_WAIT,null,null));
+            WifiUnit.transmit(kMode_Wifi_Unitcast,Protocol.wifiUnit(&wifiProt,id,RepApplyOpenMic_MtoU_D,3,null));
+        }
+    }
+    break;
+
+    /* 话筒取消等待 */
+    case tDisWait: {
+        if(type == tWired) {
+            Protocol.conference(&confProt,id,BASIC_MSG,CONFERENCE_MODE,MIC_DISWAIT,null,null);
+            ExternalCtrl.transmit(EX_CTRL_DEST,&confProt);
+            WiredUnit.transmit(&confProt);
+        } else if(type == tWifi) {
+            ExternalCtrl.transmit(EX_CTRL_DEST,Protocol.conference(&confProt,WIFI_ID(id),BASIC_MSG,CONFERENCE_MODE,MIC_DISWAIT,null,null));
+            WifiUnit.transmit(kMode_Wifi_Unitcast,Protocol.wifiUnit(&wifiProt,id,MasterOpenOrCloseMic_MtoU_D,1,null));
+        }
+    }
+    break;
+
+    /* 话筒已满 */
+    case tMicFull: {
+        if(type == tWired) {
+            Protocol.conference(&confProt,id,BASIC_MSG,CONFERENCE_MODE,MIC_CHANNEL_FULL,null,null);
+            ExternalCtrl.transmit(EX_CTRL_DEST,&confProt);
+            WiredUnit.transmit(&confProt);
+        } else if(type == tWifi) {
+            ExternalCtrl.transmit(EX_CTRL_DEST,Protocol.conference(&confProt,WIFI_ID(id),BASIC_MSG,CONFERENCE_MODE,MIC_CHANNEL_FULL,null,null));
+            WifiUnit.transmit(kMode_Wifi_Unitcast,Protocol.wifiUnit(&wifiProt,id,RepApplyOpenMic_MtoU_D,1,null));
+        }
+
+    }
+    break;
+
+    /* 话筒申请 */
+    case tMicApply: {
+        uint16_t applyId = (type == tWifi) ? WIFI_ID(id) : id;
+
+        data[0] = (uint8_t)(applyId >> 8);
+        data[1] = (uint8_t)(applyId& 0xFF);
+        len = 2;
+        Protocol.conference(&confProt,APPLY_OPEN_MIC_ID,APPLY_MSG,data[0],data[1],null,null);
+        Protocol.wifiUnit(&wifiProt,0,RepresentApplyOpenMic_MtoU_G,0,null);
+
+        ExternalCtrl.transmit(EX_CTRL_DEST,&confProt);
+        WiredUnit.transmit(&confProt);
+        WifiUnit.transWithExData(kMode_Wifi_Multicast,&wifiProt,len,data);
+    }
+    break;
+
+    /* 撤销申请 */
+    case tRevokeApply: {
+        uint16_t applyId = (type == tWifi) ? WIFI_ID(id) : id;
+
+        data[0] = (uint8_t)(applyId >> 8);
+        data[1] = (uint8_t)(applyId& 0xFF);
+        len = 2;
+        Protocol.conference(&confProt,REVOKE_APPLY_ID,APPLY_MSG,data[0],data[1],null,null);
+        Protocol.wifiUnit(&wifiProt,0,RepresentApplyOpenMic_MtoU_G,1,null);
+
+        ExternalCtrl.transmit(EX_CTRL_DEST,&confProt);
+        WiredUnit.transmit(&confProt);
+        WifiUnit.transWithExData(kMode_Wifi_Multicast,&wifiProt,len,data);
+
+    }
+    break;
+    }
+}
+
+
+/**
+* @Name  		Conference_MicControl
+* @Author  		KT
+* @Description
+* @para
+*
+*
+* @return
+*/
+static void Conference_MicControl(uint16_t id, UnitType_EN type, uint32_t cmd)
+{
+    uint8_t channel, chmMicNum, rpsMicNum, waitNum, index,allowOpen,allowWait;
+    DataQueueHandler_S chmMicQueue,rpsMicQueue,waitQueue;
+    UnitInfo_S *unitInfo;
+
+
+    ERR_CHECK(!(type == tWired && (id < 0 || id > WIRED_UNIT_MAX_ONLINE_NUM)),return);
+//    ERR_CHECK(!(type == tWired && UnitInfo.wired[id].online != true),return);
+    ERR_CHECK(!(type == tWifi && (id < 0 || id > WIFI_UNIT_MAX_ONLINE_NUM)),return);
+//    ERR_CHECK(!(type == tWifi && UnitInfo.wifi[id].online != true),return);
+
+    if(type == tWired) {
+        chmMicQueue = WiredChmMicQueue;
+        rpsMicQueue = WiredRpsMicQueue;
+        waitQueue = WiredWaitQueue;
+        unitInfo = UnitInfo.wired;
+        allowOpen = SysInfo.wiredAllowOpen;
+        allowWait = SysInfo.wiredAllowWait;
+    }
+
+    else if(type == tWifi) {
+        chmMicQueue = WifiChmMicQueue;
+        rpsMicQueue = WifiRpsMicQueue;
+        waitQueue = WifiWaitQueue;
+        unitInfo = UnitInfo.wifi;
+        allowOpen = SysInfo.wifiAllowOpen;
+        allowWait = SysInfo.wifiAllowWait;
+    } else
+        return;
 
     /* 获取队列中当前打开话筒数量 */
     chmMicNum = DataQueue.getSize(chmMicQueue);
     rpsMicNum = DataQueue.getSize(rpsMicQueue);
     waitNum = DataQueue.getSize(waitQueue);
 
-    switch(para) {
-    /* 主席申请开话筒 */
-    case CHM_OPEN_MIC: {
-        switch(micMode) {
-        /*** 先进先出模式 ***/
-        case mFifo:
-        /*** 正常模式 ***/
-        case mNormal:
-        /*** 声控模式 ***/
-        case mVoiceCtrl:
-        /*** 申请模式 ***/
-        case mApply: {
-            /* 查找话筒队列是否已经存在对应ID的话筒 */
-            if(DataQueue.search(chmMicQueue,&id)) {
-                channel = UnitInfo.wired[id].channel;
-                EXE_CHM_OPEN_MIC(id,channel);
-                break;
-            }
+    switch(cmd) {
 
-            /* 主席+代表开话筒数量未超过允许开话筒数 */
-            if(chmMicNum + rpsMicNum < wiredAllowOpen) {
-                DataQueue.enter(chmMicQueue,&id);
-                channel = Conference_GetAudioChannel(tWired);
-                UnitInfo.wired[id].channel = channel;
-                EXE_CHM_OPEN_MIC(id,channel);
-            }
-            /* 主席+代表开话筒数量等于允许开话筒数 */
-            else {
-                if(rpsMicNum > 0) {
-                    uint16_t closeId;
+    /* 开话筒 */
+    case WIRED_CMD(CHM_OPEN_MIC,0,0):
+    case WIRED_CMD(RPS_OPEN_MIC,0,0):
+    case WIFI_CMD(ApplyOpenMic_UtoM_D,0,0): {
 
-                    /* 队列取出代表单元并关闭 */
-                    DataQueue.exit(rpsMicQueue,&closeId);
-                    channel = UnitInfo.wired[closeId].channel;
-                    UnitInfo.wired[closeId].channel = null;
-                    EXE_RPS_CLOSE_MIC(closeId);
+        /* 主席申请开话筒 */
+        if(unitInfo[id].attr == aChairman) {
+            switch(SysInfo.micMode) {
+            /*** 先进先出模式 ***/
+            case kMode_Mic_Fifo:
+            /*** 正常模式 ***/
+            case kMode_Mic_Normal:
+            /*** 声控模式 ***/
+            case kMode_Mic_VoiceCtrl:
+            /*** 申请模式 ***/
+            case kMode_Mic_Apply: {
+                /* 查找话筒队列是否已经存在对应ID的话筒 */
+                if(DataQueue.search(chmMicQueue,&id)) {
+                    channel = unitInfo[id].channel;
+                    Conference_MicCtrlInstruction(id,type,aChairman,tOpenMic,channel);
+                    break;
+                }
 
-                    /* 打开主席 */
-                    UnitInfo.wired[id].channel = channel;
+                /* 主席+代表开话筒数量未超过允许开话筒数 */
+                if(chmMicNum + rpsMicNum < allowOpen) {
                     DataQueue.enter(chmMicQueue,&id);
-                    EXE_CHM_OPEN_MIC(id,channel);
-                } else {
-                    /* 话筒已满 */
-                    EXE_MIC_FULL(sPC|sWiredUnit,id);
+                    channel = Conference_GetAudioChannel(type);
+                    unitInfo[id].channel = channel;
+
+                    Conference_MicCtrlInstruction(id,type,aChairman,tOpenMic,channel);
+                }
+                /* 主席+代表开话筒数量等于允许开话筒数 */
+                else {
+                    if(rpsMicNum > 0) {
+                        uint16_t closeId;
+
+                        /* 队列取出代表单元并关闭 */
+                        DataQueue.exit(rpsMicQueue,&closeId);
+                        channel = unitInfo[closeId].channel;
+                        unitInfo[closeId].channel = null;
+                        Conference_MicCtrlInstruction(closeId,type,aRepresentative,tCloseMic,null);
+
+                        /* 打开主席 */
+                        unitInfo[id].channel = channel;
+                        DataQueue.enter(chmMicQueue,&id);
+                        Conference_MicCtrlInstruction(id,type,aChairman,tOpenMic,channel);
+                    } else {
+                        /* 话筒已满 */
+                        Conference_MicCtrlInstruction(id,type,(UnitAttr_EN)null,tMicFull,null);
+                    }
                 }
             }
-        }
-        break;
-        default:
             break;
-        }
-    }
-    break;
-    /* 代表申请开话筒 */
-    case RPS_OPEN_MIC: {
-        switch(micMode) {
-        /*** 先进先出模式 ***/
-        case mFifo: {
-            /* 查找话筒队列是否已经存在对应ID的话筒 */
-            if(DataQueue.search(rpsMicQueue,&id)) {
-                channel = UnitInfo.wired[id].channel;
-                EXE_RPS_OPEN_MIC(id,channel);
+
+            default:
                 break;
             }
+        }
 
-            /* 主席+代表开话筒数量未超过允许开话筒数 */
-            if(chmMicNum + rpsMicNum < wiredAllowOpen) {
-                channel = Conference_GetAudioChannel(tWired);
-                UnitInfo.wired[id].channel = channel;
-                DataQueue.enter(rpsMicQueue,&id);
-                EXE_RPS_OPEN_MIC(id,channel);
-            }
-            /* 主席+代表开话筒数量等于允许开话筒数 */
-            else {
-                if(rpsMicNum > 0) {
-                    uint16_t closeId;
+        else if(unitInfo[id].attr == aRepresentative) {
+            switch(SysInfo.micMode) {
+            /*** 先进先出模式 ***/
+            case kMode_Mic_Fifo: {
+                /* 查找话筒队列是否已经存在对应ID的话筒 */
+                if(DataQueue.search(rpsMicQueue,&id)) {
+                    channel = unitInfo[id].channel;
+                    Conference_MicCtrlInstruction(id,type,aRepresentative,tOpenMic,channel);
+                    break;
+                }
 
-                    /* 队列取出代表单元并关闭 */
-                    DataQueue.exit(rpsMicQueue,&closeId);
-                    channel = UnitInfo.wired[closeId].channel;
-                    UnitInfo.wired[closeId].channel = null;
-                    EXE_RPS_CLOSE_MIC(closeId);
-                    /* 打开代表 */
-                    UnitInfo.wired[id].channel = channel;
+                /* 主席+代表开话筒数量未超过允许开话筒数 */
+                if(chmMicNum + rpsMicNum < allowOpen) {
+                    channel = Conference_GetAudioChannel(type);
+                    unitInfo[id].channel = channel;
                     DataQueue.enter(rpsMicQueue,&id);
-                    EXE_RPS_OPEN_MIC(id,channel);
-                } else {
-                    /* 话筒已满 */
-                    EXE_MIC_FULL(id,sPC | sWiredUnit);
+                    Conference_MicCtrlInstruction(id,type,aRepresentative,tOpenMic,channel);
+                }
+                /* 主席+代表开话筒数量等于允许开话筒数 */
+                else {
+                    if(rpsMicNum > 0) {
+                        uint16_t closeId;
+
+                        /* 队列取出代表单元并关闭 */
+                        DataQueue.exit(rpsMicQueue,&closeId);
+                        channel = unitInfo[closeId].channel;
+                        unitInfo[closeId].channel = null;
+                        Conference_MicCtrlInstruction(closeId,type,aRepresentative,tCloseMic,null);
+                        /* 打开代表 */
+                        unitInfo[id].channel = channel;
+                        DataQueue.enter(rpsMicQueue,&id);
+                        Conference_MicCtrlInstruction(id,type,aRepresentative,tOpenMic,channel);
+                    } else {
+                        /* 话筒已满 */
+                        Conference_MicCtrlInstruction(id,type,(UnitAttr_EN)null,tMicFull,null);
+                    }
                 }
             }
-        }
-        break;
-        /*** 正常模式 ***/
-        case mNormal:
-        /*** 声控模式 ***/
-        case mVoiceCtrl: {
-            /* 查找话筒队列是否已经存在对应ID的话筒 */
-            if(DataQueue.search(rpsMicQueue,&id)) {
-                /* 重新发送打开话筒指令，不需要操作队列 */
-                channel = UnitInfo.wired[id].channel;
-                EXE_RPS_OPEN_MIC(id,channel);
-                break;
-            }
-
-            /* 查找等待队列是否存在对应ID话筒 */
-            if(waitNum > 0 ) {
-                /* 取消该话筒等待 */
-                index = DataQueue.search(waitQueue,&id);
-                if(index != 0) {
-                    DataQueue.deleted(waitQueue,index);
-                    EXE_MIC_DISWAIT(id);
+            break;
+            /*** 正常模式 ***/
+            case kMode_Mic_Normal:
+            /*** 声控模式 ***/
+            case kMode_Mic_VoiceCtrl: {
+                /* 查找话筒队列是否已经存在对应ID的话筒 */
+                if(DataQueue.search(rpsMicQueue,&id)) {
+                    /* 重新发送打开话筒指令，不需要操作队列 */
+                    channel = unitInfo[id].channel;
+                    Conference_MicCtrlInstruction(id,type,aRepresentative,tOpenMic,channel);
+                    break;
                 }
-                break;
-            }
 
-            /* 主席+代表开话筒数量未超过允许开话筒数 */
-            if(chmMicNum + rpsMicNum < wiredAllowOpen) {
-                channel = Conference_GetAudioChannel(tWired);
-                UnitInfo.wired[id].channel = channel;
-                DataQueue.enter(rpsMicQueue,&id);
-                EXE_RPS_OPEN_MIC(id,channel);
+                /* 查找等待队列是否存在对应ID话筒 */
+                if(waitNum > 0 ) {
+                    /* 取消该话筒等待 */
+                    index = DataQueue.search(waitQueue,&id);
+                    if(index != 0) {
+                        DataQueue.deleted(waitQueue,index);
+                        Conference_MicCtrlInstruction(id,type,(UnitAttr_EN)null,tDisWait,null);
+                    }
+                    break;
+                }
+
+                /* 主席+代表开话筒数量未超过允许开话筒数 */
+                if(chmMicNum + rpsMicNum < allowOpen) {
+                    channel = Conference_GetAudioChannel(type);
+                    unitInfo[id].channel = channel;
+                    DataQueue.enter(rpsMicQueue,&id);
+                    Conference_MicCtrlInstruction(id,type,aRepresentative,tOpenMic,channel);
+                }
+                /* 主席+代表开话筒数量等于允许开话筒数 */
+                else {
+                    /* 等待数量未满 */
+                    if(waitNum < allowWait) {
+                        /* 进入等待队列 */
+                        DataQueue.enter(waitQueue,&id);
+                        Conference_MicCtrlInstruction(id,type,(UnitAttr_EN)null,tWaiting,null);
+                    } else {
+                        /* 话筒已满 */
+//                        EXE_MIC_FULL(id,kType_NotiSrc_PC | kType_NotiSrc_WiredUnit);
+                        Conference_MicCtrlInstruction(id,type,(UnitAttr_EN)null,tMicFull,null);
+                    }
+                }
             }
-            /* 主席+代表开话筒数量等于允许开话筒数 */
-            else {
-                /* 等待数量未满 */
-                if(waitNum < wiredAllowWait) {
+            break;
+            /*** 申请模式 ***/
+            case kMode_Mic_Apply: {
+                /* 查找话筒队列是否已经存在对应ID的话筒 */
+                if(DataQueue.search(rpsMicQueue,&id)) {
+                    channel = unitInfo[id].channel;
+                    Conference_MicCtrlInstruction(id,type,aRepresentative,tOpenMic,channel);
+                    break;
+                }
+
+                /* 查找等待队列是否存在对应ID话筒 */
+                if(waitNum > 0 ) {
+                    index = DataQueue.search(waitQueue,&id);
+                    if(index != 0) {
+                        Conference_MicCtrlInstruction(id,type,(UnitAttr_EN)null,tWaiting,null);
+                        break;
+                    }
+                }
+
+                /* 主席+代表开话筒数量未超过允许开话筒数 */
+                if(chmMicNum + rpsMicNum < allowOpen && waitNum < allowWait) {
                     /* 进入等待队列 */
                     DataQueue.enter(waitQueue,&id);
-                    EXE_MIC_WAIT(id);
-                } else {
+                    Conference_MicCtrlInstruction(id,type,(UnitAttr_EN)null,tWaiting,null);
+                    Conference_MicCtrlInstruction(id,type,(UnitAttr_EN)null,tMicApply,null);
+                }
+                /* 主席+代表开话筒数量等于允许开话筒数 */
+                else {
                     /* 话筒已满 */
-                    EXE_MIC_FULL(id,sPC | sWiredUnit);
+                    Conference_MicCtrlInstruction(id,type,(UnitAttr_EN)null,tMicFull,null);
                 }
             }
-        }
-        /*** 申请模式 ***/
-        case mApply: {
-            /* 查找话筒队列是否已经存在对应ID的话筒 */
-            if(DataQueue.search(rpsMicQueue,&id)) {
-                channel = UnitInfo.wired[id].channel;
-                EXE_RPS_OPEN_MIC(id,channel);
-                break;
-            }
-
-            /* 查找等待队列是否存在对应ID话筒 */
-            if(waitNum > 0 ) {
-                /* 取消该话筒等待 */
-                index = DataQueue.search(waitQueue,&id);
-                if(index != 0) {
-                    DataQueue.deleted(waitQueue,index);
-                    EXE_MIC_DISWAIT(id);
-                    EXE_REVOKE_APPLY(id);
-                }
-                break;
-            }
-
-            /* 主席+代表开话筒数量未超过允许开话筒数 */
-            if(chmMicNum + rpsMicNum < wiredAllowOpen) {
-                /* 进入等待队列 */
-                DataQueue.enter(waitQueue,&id);
-                EXE_MIC_WAIT(id);
-                EXE_APPLY_OPEN_MIC(id);
-            }
-            /* 主席+代表开话筒数量等于允许开话筒数 */
-            else {
-                /* 话筒已满 */
-                EXE_MIC_FULL(id,sPC | sWiredUnit);
-            }
-        }
-        break;
-        default:
             break;
+            default:
+                break;
+            }
         }
     }
     break;
 
-    /* 同意开话筒 */
-    case AGREE_OPEN_MIC: {
-        if(chmMicNum + rpsMicNum < wiredAllowOpen && waitNum > 0) {
+    /* 关话筒 */
+    case WIRED_CMD(CHM_CLOSE_MIC,0,0):
+    case WIRED_CMD(RPS_CLOSE_MIC,0,0):
+    case WIFI_CMD(UnitCloseMic_UtoM_D,0,0): {
+        switch(SysInfo.micMode) {
+        /*** 先进先出模式 ***/
+        case kMode_Mic_Fifo: {
+            /* 主席单元 */
+            if(unitInfo[id].attr == aChairman) {
+                /* 查找话筒队列是否已经存在对应ID的话筒 */
+                index = DataQueue.search(chmMicQueue,&id);
+                if(index) {
+                    Conference_GiveAudioChannel(type,unitInfo[id].channel);
+                    DataQueue.deleted(chmMicQueue,index);
+                    Conference_MicCtrlInstruction(id,type,aChairman,tCloseMic,null);
+                }
+            }
+
+            /* 代表单元 */
+            else if(unitInfo[id].attr == aRepresentative) {
+                /* 查找话筒队列是否已经存在对应ID的话筒 */
+                index = DataQueue.search(rpsMicQueue,&id);
+                if(index) {
+                    Conference_GiveAudioChannel(type,unitInfo[id].channel);
+                    unitInfo[id].channel = null;
+                    DataQueue.deleted(rpsMicQueue,index);
+                    Conference_MicCtrlInstruction(id,type,aRepresentative,tCloseMic,null);
+                }
+            }
+        }
+        break;
+
+        /*** 正常模式 ***/
+        case kMode_Mic_Normal:
+        /*** 声控模式 ***/
+        case kMode_Mic_VoiceCtrl: {
+            /* 主席单元 */
+            if(unitInfo[id].attr == aChairman) {
+                /* 查找话筒队列是否已经存在对应ID的话筒 */
+                index = DataQueue.search(chmMicQueue,&id);
+                if(index) {
+                    Conference_GiveAudioChannel(type,unitInfo[id].channel);
+                    DataQueue.deleted(chmMicQueue,index);
+                    Conference_MicCtrlInstruction(id,type,aChairman,tCloseMic,null);
+                } else
+                    break;
+
+                if(waitNum > 0) {
+                    /* 等待队列取出单元并打开 */
+                    uint16_t waitId;
+                    DataQueue.exit(waitQueue,&waitId);
+                    Conference_MicControl(waitId,type,WIRED_CMD(RPS_OPEN_MIC,0,0));
+                }
+            }
+
+            /* 代表单元 */
+            else if(unitInfo[id].attr == aRepresentative) {
+                /* 查找话筒队列是否已经存在对应ID的话筒 */
+                index = DataQueue.search(rpsMicQueue,&id);
+                if(index) {
+                    Conference_GiveAudioChannel(type,unitInfo[id].channel);
+                    unitInfo[id].channel = null;
+                    DataQueue.deleted(rpsMicQueue,index);
+                    Conference_MicCtrlInstruction(id,type,aRepresentative,tCloseMic,null);
+                }
+
+                if(waitNum > 0) {
+                    /* 等待队列取出单元并打开 */
+                    uint16_t waitId;
+                    DataQueue.exit(waitQueue,&waitId);
+                    Conference_MicControl(waitId,type,WIRED_CMD(RPS_OPEN_MIC,0,0));
+                }
+            }
+//            break;
+        }
+        break;
+
+        /*** 申请模式 ***/
+        case kMode_Mic_Apply: {
+            /* 主席单元 */
+            if(unitInfo[id].attr == aChairman) {
+                /* 查找话筒队列是否已经存在对应ID的话筒 */
+                index = DataQueue.search(chmMicQueue,&id);
+                if(index) {
+                    Conference_GiveAudioChannel(type,unitInfo[id].channel);
+                    DataQueue.deleted(chmMicQueue,index);
+                    Conference_MicCtrlInstruction(id,type,aChairman,tCloseMic,null);
+                }
+            }
+
+            /* 代表单元 */
+            else if(unitInfo[id].attr == aRepresentative) {
+                /* 查找话筒队列是否已经存在对应ID的话筒 */
+                index = DataQueue.search(rpsMicQueue,&id);
+                if(index) {
+                    Conference_GiveAudioChannel(type,unitInfo[id].channel);
+                    unitInfo[id].channel = null;
+                    DataQueue.deleted(rpsMicQueue,index);
+                    Conference_MicCtrlInstruction(id,type,aRepresentative,tCloseMic,null);
+                }
+            }
+        }
+        break;
+        }
+    }
+    break;
+
+    /* 主席同意开话筒 */
+    case WIRED_CMD(AGREE_OPEN_MIC,0,0):
+    case WIFI_CMD(ChairAgreeOpenOrNot_UtoM_D,0,0): {
+        uint8_t waitId;
+
+        /* 由外部控制同意，有ID */
+        if(id != 0) {
             /* 打开话筒，并删除等待队列中对应ID的话筒 */
             index = DataQueue.search(waitQueue,&id);
             if(index != 0) {
                 DataQueue.deleted(waitQueue,index);
 
                 DataQueue.enter(rpsMicQueue,&id);
-                channel = Conference_GetAudioChannel(tWired);
-                UnitInfo.wired[id].channel = channel;
-                EXE_RPS_OPEN_MIC(id,channel);
+                channel = Conference_GetAudioChannel(type);
+                unitInfo[id].channel = channel;
+                Conference_MicCtrlInstruction(id,type,aRepresentative,tOpenMic,channel);
             }
+
+        }
+
+        /* 主席机同意 */
+        /* @brief ：主席机同意/拒绝开话筒不会下发同意的ID，只会下发一个同意/拒绝指令，
+                    主机需要在队列里面查找，按照队列顺序同意/拒绝话筒打开，且第三代主机
+                    需要把有线和WIFI两部分系统逻辑合并，因此在同意/拒绝开话筒这里需要
+                    查找两方面的队列   */
+        else {
+
+            if(DataQueue.getSize(WiredWaitQueue) > 0) {
+                /* 先查找有线单元等待队列 */
+                if(DataQueue.exit(WiredWaitQueue,&waitId) && \
+                   (DataQueue.getSize(WiredRpsMicQueue) + DataQueue.getSize(WiredChmMicQueue) < SysInfo.wiredAllowOpen)) {
+                    DataQueue.enter(WiredRpsMicQueue,&waitId);
+                    channel = Conference_GetAudioChannel(tWired);
+                    UnitInfo.wired[waitId].channel = channel;
+                    Conference_MicCtrlInstruction(waitId,tWired,aRepresentative,tOpenMic,channel);
+                }
+
+            }
+
+            else if(DataQueue.getSize(WifiWaitQueue) > 0 ) {
+                /* 再查找WIFI单元等待队列 */
+                if(DataQueue.exit(WifiWaitQueue,&waitId) && \
+                   (DataQueue.getSize(WifiRpsMicQueue) + DataQueue.getSize(WifiChmMicQueue) < SysInfo.wifiAllowOpen)) {
+                    DataQueue.enter(WifiRpsMicQueue,&waitId);
+                    channel = Conference_GetAudioChannel(tWifi);
+                    UnitInfo.wifi[waitId].channel = channel;
+                    Conference_MicCtrlInstruction(waitId,tWifi,aRepresentative,tOpenMic,channel);
+                }
+            }
+        }
+
+        if(DataQueue.getSize(WifiWaitQueue) == 0 && DataQueue.getSize(WiredWaitQueue) == 0) {
+            Conference_MicCtrlInstruction(null,(UnitType_EN)null,(UnitAttr_EN)null,tRevokeApply,null);
         }
     }
     break;
-    /* 不同意开话筒 */
-    case DISAGREE_OPEN_MIC: {
-        /* 查找等待队列是否存在对应ID话筒 */
-        if(waitNum > 0 ) {
-            /* 取消该话筒等待 */
+
+    /* 主席不同意开话筒 */
+    case WIRED_CMD(DISAGREE_OPEN_MIC,0,0):
+    case WIFI_CMD(ChairAgreeOpenOrNot_UtoM_D,1,0): {
+        /* 由外部控制拒绝，有ID */
+        if(id != 0) {
+            /* 打开话筒，并删除等待队列中对应ID的话筒 */
             index = DataQueue.search(waitQueue,&id);
             if(index != 0) {
                 DataQueue.deleted(waitQueue,index);
-                EXE_MIC_DISWAIT(id);
-                EXE_REVOKE_APPLY(id);
+                Conference_MicCtrlInstruction(id,type,(UnitAttr_EN)null,tDisWait,null);
             }
+        }
+
+        /* 主席机拒绝 */
+        else {
+            uint8_t waitId;
+
+            if(DataQueue.getSize(WiredWaitQueue) > 0) {
+                /* 先查找有线单元等待队列 */
+                if(DataQueue.exit(WiredWaitQueue,&waitId)) {
+                    Conference_MicCtrlInstruction(waitId,tWired,(UnitAttr_EN)null,tDisWait,null);
+                }
+
+            }
+
+            else if(DataQueue.getSize(WifiWaitQueue) > 0 ) {
+                /* 再查找WIFI单元等待队列 */
+                if(DataQueue.exit(WifiWaitQueue,&waitId)) {
+                    Conference_MicCtrlInstruction(waitId,tWifi,(UnitAttr_EN)null,tDisWait,null);
+                }
+            }
+        }
+
+
+        if(DataQueue.getSize(WifiWaitQueue) == 0 && DataQueue.getSize(WiredWaitQueue) == 0) {
+            Conference_MicCtrlInstruction(null,(UnitType_EN)null,(UnitAttr_EN)null,tRevokeApply,null);
+        }
+    }
+    break;
+
+    /* 单元取消等待 */
+    case WIRED_CMD(MIC_DISWAIT,0,0):
+    case WIFI_CMD(UnitGetoutWaitQuenen_UtoM_D,0,0): {
+        switch(SysInfo.micMode) {
+        /*** 正常模式 ***/
+        case kMode_Mic_Normal:
+        /*** 声控模式 ***/
+        case kMode_Mic_VoiceCtrl: {
+            if(waitNum > 0 && unitInfo[id].attr == aRepresentative) {
+                /* 查找等待队列是否已经存在对应ID的话筒 */
+                index = DataQueue.search(waitQueue,&id);
+                if(index) {
+                    DataQueue.deleted(waitQueue,index);
+                    Conference_MicCtrlInstruction(id,type,(UnitAttr_EN)null,tDisWait,null);
+                }
+            }
+        }
+        break;
+        /*** 申请模式 ***/
+        case kMode_Mic_Apply: {
+            if(waitNum > 0 && unitInfo[id].attr == aRepresentative) {
+                /* 查找等待队列是否已经存在对应ID的话筒 */
+                index = DataQueue.search(waitQueue,&id);
+                if(index) {
+                    DataQueue.deleted(waitQueue,index);
+                    Conference_MicCtrlInstruction(id,type,(UnitAttr_EN)null,tDisWait,null);
+                }
+            }
+
+            if(DataQueue.getSize(WifiWaitQueue) == 0 && DataQueue.getSize(WiredWaitQueue) == 0) {
+                Conference_MicCtrlInstruction(null,(UnitType_EN)null,(UnitAttr_EN)null,tRevokeApply,null);
+            }
+        }
+        break;
+        default:
             break;
-        }
-    }
-    break;
-    }
-
-#if 0
-    switch(micMode) {
-    /*** 先进先出模式 ***/
-    case mFifo: {
-        switch(para) {
-        /* 主席单元 */
-        case CHM_OPEN_MIC: {
-            /* 查找话筒队列是否已经存在对应ID的话筒 */
-            if(DataQueue.search(chmMicQueue,&id)) {
-                channel = UnitInfo.wired[id].channel;
-                EXE_CHM_OPEN_MIC(id,channel);
-                break;
-            }
-
-            /* 主席+代表开话筒数量未超过允许开话筒数 */
-            if(chmMicNum + rpsMicNum < wiredAllowOpen) {
-                DataQueue.enter(chmMicQueue,&id);
-                channel = Conference_GetAudioChannel(tWired);
-                UnitInfo.wired[id].channel = channel;
-                EXE_CHM_OPEN_MIC(id,channel);
-            }
-            /* 主席+代表开话筒数量等于允许开话筒数 */
-            else {
-                if(rpsMicNum > 0) {
-                    uint16_t closeId;
-
-                    /* 队列取出代表单元并关闭 */
-                    DataQueue.exit(rpsMicQueue,&closeId);
-                    channel = UnitInfo.wired[closeId].channel;
-                    EXE_RPS_CLOSE_MIC(closeId);
-
-                    /* 打开主席 */
-                    DataQueue.enter(chmMicQueue,&id);
-                    EXE_CHM_OPEN_MIC(id,channel);
-                } else {
-                    /* 话筒已满 */
-                    EXE_MIC_FULL(sPC|sWiredUnit,id);
-                }
-            }
-        }
-        break;
-        /* 代表单元 */
-        case RPS_OPEN_MIC: {
-            /* 查找话筒队列是否已经存在对应ID的话筒 */
-            if(DataQueue.search(rpsMicQueue,&id)) {
-                channel = UnitInfo.wired[id].channel;
-                EXE_RPS_OPEN_MIC(id,channel);
-                break;
-            }
-
-            /* 主席+代表开话筒数量未超过允许开话筒数 */
-            if(chmMicNum + rpsMicNum < wiredAllowOpen) {
-                channel = Conference_GetAudioChannel(tWired);
-                UnitInfo.wired[id].channel = channel;
-                DataQueue.enter(rpsMicQueue,&id);
-                EXE_RPS_OPEN_MIC(id,channel);
-            }
-            /* 主席+代表开话筒数量等于允许开话筒数 */
-            else {
-                if(rpsMicNum > 0) {
-                    uint16_t closeId;
-
-                    /* 队列取出代表单元并关闭 */
-                    DataQueue.exit(rpsMicQueue,&closeId);
-                    channel = UnitInfo.wired[closeId].channel;
-                    EXE_RPS_CLOSE_MIC(closeId);
-                    /* 打开代表 */
-                    DataQueue.enter(rpsMicQueue,&id);
-                    EXE_RPS_OPEN_MIC(id,channel);
-                } else {
-                    /* 话筒已满 */
-                    EXE_MIC_FULL(id,sPC | sWiredUnit);
-                }
-            }
-        }
-        break;
-        }
-    }
-    break;
-
-    /*** 正常模式 ***/
-    case mNormal:
-    /*** 声控模式 ***/
-    case mVoiceCtrl: {
-        switch(para) {
-        /* 主席单元 */
-        case CHM_OPEN_MIC: {
-            /* 查找话筒队列是否已经存在对应ID的话筒 */
-            if(DataQueue.search(chmMicQueue,&id)) {
-                channel = UnitInfo.wired[id].channel;
-                EXE_CHM_OPEN_MIC(id,channel);
-                break;
-            }
-
-            /* 主席+代表开话筒数量未超过允许开话筒数 */
-            if(chmMicNum + rpsMicNum < wiredAllowOpen) {
-                DataQueue.enter(chmMicQueue,&id);
-                channel = Conference_GetAudioChannel(tWired);
-                UnitInfo.wired[id].channel = channel;
-                EXE_CHM_OPEN_MIC(id,channel);
-            }
-            /* 主席+代表开话筒数量等于允许开话筒数 */
-            else {
-                if(rpsMicNum > 0) {
-                    uint16_t closeId;
-
-                    /* 队列取出代表单元并关闭 */
-                    DataQueue.exit(rpsMicQueue,&closeId);
-                    channel = UnitInfo.wired[closeId].channel;
-                    EXE_RPS_CLOSE_MIC(closeId);
-
-                    /* 打开主席 */
-                    DataQueue.enter(chmMicQueue,&id);
-                    EXE_CHM_OPEN_MIC(id,channel);
-                } else {
-                    /* 话筒已满 */
-                    EXE_MIC_FULL(id,sPC | sWiredUnit);
-                }
-            }
-        }
-        break;
-        /* 代表单元 */
-        case RPS_OPEN_MIC: {
-            /* 查找话筒队列是否已经存在对应ID的话筒 */
-            if(DataQueue.search(rpsMicQueue,&id)) {
-                /* 重新发送打开话筒指令，不需要操作队列 */
-                channel = UnitInfo.wired[id].channel;
-                EXE_RPS_OPEN_MIC(id,channel);
-                break;
-            }
-
-            /* 查找等待队列是否存在对应ID话筒 */
-            if(waitNum > 0 ) {
-                /* 取消该话筒等待 */
-                index = DataQueue.search(waitQueue,&id);
-                if(index != 0) {
-                    DataQueue.deleted(waitQueue,index);
-                    EXE_MIC_DISWAIT(id);
-                }
-                break;
-            }
-
-            /* 主席+代表开话筒数量未超过允许开话筒数 */
-            if(chmMicNum + rpsMicNum < wiredAllowOpen) {
-                channel = Conference_GetAudioChannel(tWired);
-                UnitInfo.wired[id].channel = channel;
-                DataQueue.enter(rpsMicQueue,&id);
-                EXE_RPS_OPEN_MIC(id,channel);
-            }
-            /* 主席+代表开话筒数量等于允许开话筒数 */
-            else {
-                /* 等待数量未满 */
-                if(waitNum < wiredAllowWait) {
-                    /* 进入等待队列 */
-                    DataQueue.enter(waitQueue,&id);
-                    EXE_MIC_WAIT(id);
-                } else {
-                    /* 话筒已满 */
-                    EXE_MIC_FULL(id,sPC | sWiredUnit);
-                }
-            }
-        }
-        break;
-        }
-    }
-    break;
-
-    /*** 申请模式 ***/
-    case mApply: {
-        switch(para) {
-        /* 主席单元 */
-        case CHM_OPEN_MIC: {
-            /* 查找话筒队列是否已经存在对应ID的话筒 */
-            if(DataQueue.search(chmMicQueue,&id)) {
-                channel = UnitInfo.wired[id].channel;
-                EXE_CHM_OPEN_MIC(id,channel);
-                break;
-            }
-
-            /* 主席+代表开话筒数量未超过允许开话筒数 */
-            if(chmMicNum + rpsMicNum < wiredAllowOpen) {
-                DataQueue.enter(chmMicQueue,&id);
-                channel = Conference_GetAudioChannel(tWired);
-                UnitInfo.wired[id].channel = channel;
-                EXE_CHM_OPEN_MIC(id,channel);
-            }
-            /* 主席+代表开话筒数量等于允许开话筒数 */
-            else {
-                if(rpsMicNum > 0) {
-                    uint16_t closeId;
-
-                    /* 队列取出代表单元并关闭 */
-                    DataQueue.exit(rpsMicQueue,&closeId);
-                    channel = UnitInfo.wired[closeId].channel;
-                    EXE_RPS_CLOSE_MIC(closeId);
-
-                    /* 打开主席 */
-                    DataQueue.enter(chmMicQueue,&id);
-                    EXE_CHM_OPEN_MIC(id,channel);
-                } else {
-                    /* 话筒已满 */
-                    EXE_MIC_FULL(sPC|sWiredUnit,id);
-                }
-            }
-        }
-        break;
-        /* 代表单元 */
-        case RPS_OPEN_MIC: {
-            /* 查找话筒队列是否已经存在对应ID的话筒 */
-            if(DataQueue.search(rpsMicQueue,&id)) {
-                channel = UnitInfo.wired[id].channel;
-                EXE_RPS_OPEN_MIC(id,channel);
-                break;
-            }
-
-            /* 查找等待队列是否存在对应ID话筒 */
-            if(waitNum > 0 ) {
-                /* 取消该话筒等待 */
-                index = DataQueue.search(waitQueue,&id);
-                if(index != 0) {
-                    DataQueue.deleted(waitQueue,index);
-                    EXE_MIC_DISWAIT(id);
-                    EXE_REVOKE_APPLY(id);
-                }
-                break;
-            }
-
-            /* 主席+代表开话筒数量未超过允许开话筒数 */
-            if(chmMicNum + rpsMicNum < wiredAllowOpen) {
-                /* 进入等待队列 */
-                DataQueue.enter(waitQueue,&id);
-                EXE_MIC_WAIT(id);
-                EXE_APPLY_OPEN_MIC(id);
-            }
-            /* 主席+代表开话筒数量等于允许开话筒数 */
-            else {
-                /* 话筒已满 */
-                EXE_MIC_FULL(id,sPC | sWiredUnit);
-            }
-        }
-        break;
-        /* 同意开话筒 */
-        case AGREE_OPEN_MIC: {
-            if(chmMicNum + rpsMicNum < wiredAllowOpen && waitNum > 0) {
-                /* 打开话筒，并删除等待队列中对应ID的话筒 */
-                index = DataQueue.search(waitQueue,&id);
-                if(index != 0) {
-                    DataQueue.deleted(waitQueue,index);
-
-                    DataQueue.enter(rpsMicQueue,&id);
-                    channel = Conference_GetAudioChannel(tWired);
-                    UnitInfo.wired[id].channel = channel;
-                    EXE_RPS_OPEN_MIC(id,channel);
-                }
-            }
-        }
-        break;
-        /* 不同意开话筒 */
-        case DISAGREE_OPEN_MIC: {
-            /* 查找等待队列是否存在对应ID话筒 */
-            if(waitNum > 0 ) {
-                /* 取消该话筒等待 */
-                index = DataQueue.search(waitQueue,&id);
-                if(index != 0) {
-                    DataQueue.deleted(waitQueue,index);
-                    EXE_MIC_DISWAIT(id);
-                    EXE_REVOKE_APPLY(id);
-                }
-                break;
-            }
-        }
-        break;
 
         }
     }
     break;
     }
-#endif
+
+
     Conference_OpenMicListDebug();
 }
 
 
 
 /**
-* @Name  		Conference_WiredCloseMic
+* @Name  		Conference_CloseAllMic
 * @Author  		KT
 * @Description
 * @para
@@ -1107,177 +2286,55 @@ static void Conference_WiredOpenMic(uint16_t id, uint8_t para)
 *
 * @return
 */
-static void Conference_WiredCloseMic(uint16_t id, uint8_t para)
+static void Conference_CloseAllMic(UnitType_EN type,UnitAttr_EN attr)
 {
-//    ConfProtocol_S prot;
-    uint8_t index, waitNum;
-
-    ERR_CHECK(id > 0 && id <= WIRED_UNIT_MAX_ONLINE_NUM,return);
-    ERR_CHECK(!(para == CHM_CLOSE_MIC && UnitInfo.wired[id].attr != aChairman),return);
-    ERR_CHECK(!(para == RPS_CLOSE_MIC && UnitInfo.wired[id].attr != aRepresentative),return);
-
-    waitNum = DataQueue.getSize(waitQueue);
-
-    switch(micMode) {
-    /*** 先进先出模式 ***/
-    case mFifo: {
-        switch(para) {
-        /* 主席单元 */
-        case CHM_CLOSE_MIC: {
-            /* 查找话筒队列是否已经存在对应ID的话筒 */
-            index = DataQueue.search(chmMicQueue,&id);
-            if(index) {
-                Conference_GiveAudioChannel(tWired,UnitInfo.wired[id].channel);
-                DataQueue.deleted(chmMicQueue,index);
-                EXE_CHM_CLOSE_MIC(id);
-            }
-        }
-        break;
-
-        /* 代表单元 */
-        case RPS_CLOSE_MIC: {
-            /* 查找话筒队列是否已经存在对应ID的话筒 */
-            index = DataQueue.search(rpsMicQueue,&id);
-            if(index) {
-                Conference_GiveAudioChannel(tWired,UnitInfo.wired[id].channel);
-                UnitInfo.wired[id].channel = null;
-                DataQueue.deleted(rpsMicQueue,index);
-                EXE_RPS_CLOSE_MIC(id);
-            }
-        }
-        break;
-        }
-    }
-    break;
-
-    /*** 正常模式 ***/
-    case mNormal:
-    /*** 声控模式 ***/
-    case mVoiceCtrl: {
-        switch(para) {
-        /* 主席单元 */
-        case CHM_CLOSE_MIC: {
-            /* 查找话筒队列是否已经存在对应ID的话筒 */
-            index = DataQueue.search(chmMicQueue,&id);
-            if(index) {
-                Conference_GiveAudioChannel(tWired,UnitInfo.wired[id].channel);
-                DataQueue.deleted(chmMicQueue,index);
-                EXE_CHM_CLOSE_MIC(id);
-            } else
-                break;
-
-            if(waitNum > 0) {
-                /* 等待队列取出单元并打开 */
-                uint16_t waitId;
-                DataQueue.exit(waitQueue,&waitId);
-                Conference_WiredOpenMic(waitId,RPS_OPEN_MIC);
-            }
-        }
-        break;
-
-        /* 代表单元 */
-        case RPS_CLOSE_MIC: {
-            /* 查找话筒队列是否已经存在对应ID的话筒 */
-            index = DataQueue.search(rpsMicQueue,&id);
-            if(index) {
-                Conference_GiveAudioChannel(tWired,UnitInfo.wired[id].channel);
-                UnitInfo.wired[id].channel = null;
-                DataQueue.deleted(rpsMicQueue,index);
-                EXE_RPS_CLOSE_MIC(id);
-            }
-
-            if(waitNum > 0) {
-                /* 等待队列取出单元并打开 */
-                uint16_t waitId;
-                DataQueue.exit(waitQueue,&waitId);
-                Conference_WiredOpenMic(waitId,RPS_OPEN_MIC);
-            }
-        }
-        break;
-        }
-    }
-    break;
-
-
-
-    /*** 申请模式 ***/
-    case mApply: {
-        switch(para) {
-        /* 主席单元 */
-        case CHM_CLOSE_MIC: {
-            /* 查找话筒队列是否已经存在对应ID的话筒 */
-            index = DataQueue.search(chmMicQueue,&id);
-            if(index) {
-                Conference_GiveAudioChannel(tWired,UnitInfo.wired[id].channel);
-                DataQueue.deleted(chmMicQueue,index);
-                EXE_CHM_CLOSE_MIC(id);
-            }
-        }
-        break;
-
-        /* 代表单元 */
-        case RPS_CLOSE_MIC: {
-            /* 查找话筒队列是否已经存在对应ID的话筒 */
-            index = DataQueue.search(rpsMicQueue,&id);
-            if(index) {
-                Conference_GiveAudioChannel(tWired,UnitInfo.wired[id].channel);
-                UnitInfo.wired[id].channel = null;
-                DataQueue.deleted(rpsMicQueue,index);
-                EXE_RPS_CLOSE_MIC(id);
-            }
-        }
-        break;
-        }
-    }
-    break;
-    }
-
-    Conference_OpenMicListDebug();
-}
-
-
-/**
-* @Name  		Conference_WiredCloseAllMic
-* @Author  		KT
-* @Description
-* @para
-*
-*
-* @return
-*/
-static void Conference_WiredCloseAllMic(UnitAttr_EN attr)
-{
-//    ConfProtocol_S prot;
-    DataQueueHandler_S *queue;
+    DataQueueHandler_S *micQueue;
     uint8_t micNum,i;
     uint16_t *idArr;
+    UnitInfo_S *unitInfo;
 
-    if(attr == aChairman)
-        queue = chmMicQueue;
-    else if(attr == aRepresentative)
-        queue = rpsMicQueue;
-    else
+    if(type == tWired) {
+        unitInfo = UnitInfo.wired;
+
+        if(attr == aChairman)
+            micQueue = WiredChmMicQueue;
+        else if(attr == aRepresentative)
+            micQueue = WiredRpsMicQueue;
+        else
+            return;
+    } else if(type == tWifi) {
+        unitInfo = UnitInfo.wifi;
+
+        if(attr == aChairman)
+            micQueue = WifiChmMicQueue;
+        else if(attr == aRepresentative)
+            micQueue = WifiRpsMicQueue;
+        else
+            return;
+    } else
         return;
 
-    micNum = DataQueue.getSize(queue);
+    micNum = DataQueue.getSize(micQueue);
     if(micNum > 0) {
         idArr = MALLOC(micNum * sizeof(uint16_t));
-        DataQueue.toArray(queue,idArr);
+        DataQueue.toArray(micQueue,idArr);
         for(i = 0; i<micNum; i++) {
             if(attr == aChairman)
-                EXE_CHM_CLOSE_MIC(idArr[i]);
+                Conference_MicCtrlInstruction(idArr[i], type, aChairman, tCloseMic, null);
             else
-                EXE_RPS_CLOSE_MIC(idArr[i]);
-            Conference_GiveAudioChannel(tWired,UnitInfo.wired[idArr[i]].channel);
-            UnitInfo.wired[idArr[i]].channel = null;
+                Conference_MicCtrlInstruction(idArr[i], type, aRepresentative, tCloseMic, null);
+
+            Conference_GiveAudioChannel(type,unitInfo[idArr[i]].channel);
+            unitInfo[idArr[i]].channel = null;
         }
-        DataQueue.empty(queue);
+        DataQueue.empty(micQueue);
+        FREE(idArr);
     }
 }
 
 
 /**
-* @Name  		Conference_WiredCloseAllMic
+* @Name  		Conference_ClearApplyMic
 * @Author  		KT
 * @Description
 * @para
@@ -1285,48 +2342,69 @@ static void Conference_WiredCloseAllMic(UnitAttr_EN attr)
 *
 * @return
 */
-static void Conference_WiredOutlineAllUnit(void)
+static void Conference_ClearApplyMic(UnitType_EN type)
 {
-    Conference_WiredCloseAllMic(aChairman);
-    Conference_WiredCloseAllMic(aRepresentative);
+    uint8_t waitNum,i;
+    uint16_t *idArr;
+    DataQueueHandler_S *micQueue;
+//	UnitInfo_S *unitInfo;
+
+    if(type == tWired) {
+//		unitInfo = UnitInfo.wired;
+        micQueue = WiredWaitQueue;
+    } else if(type == tWifi) {
+//		unitInfo = UnitInfo.wifi;
+        micQueue = WifiWaitQueue;
+    } else
+        return;
+
+    waitNum = DataQueue.getSize(micQueue);
+
+    if(waitNum > 0) {
+        idArr = MALLOC(waitNum * sizeof(uint16_t));
+        DataQueue.toArray(micQueue,idArr);
+        for(i = 0; i<waitNum; i++) {
+            Conference_MicCtrlInstruction(idArr[i], type, (UnitAttr_EN)null, tDisWait, null);
+            if(SysInfo.micMode == kMode_Mic_Apply)
+                Conference_MicCtrlInstruction(idArr[i], type, (UnitAttr_EN)null, tRevokeApply, null);
+        }
+        DataQueue.empty(micQueue);
+        FREE(idArr);
+    }
+}
+
+
+
+/**
+* @Name  		Conference_OfflineAllUnit
+* @Author  		KT
+* @Description
+* @para
+*
+*
+* @return
+*/
+static void Conference_OfflineAllUnit(void)
+{
+    Conference_CloseAllMic(tWired,aChairman);
+    Conference_CloseAllMic(tWired,aRepresentative);
+    Conference_CloseAllMic(tWifi,aChairman);
+    Conference_CloseAllMic(tWifi,aRepresentative);
+    Conference_ClearApplyMic(tWired);
+    Conference_ClearApplyMic(tWifi);
 
     memset(&OnlineNum,0,sizeof(UnitOnlineNum));
     memset(&UnitInfo,0,sizeof(UnitInfo));
 
     /* 重置音频通道队列 */
     Conference_ResetAudioChannel(tWired);
-    /* 清除等待队列 */
-    DataQueue.empty(waitQueue);
+    Conference_ResetAudioChannel(tWifi);
+
 }
 
 
 
-/**
-* @Name  		Conference_WiredClearApply
-* @Author  		KT
-* @Description
-* @para
-*
-*
-* @return
-*/
-static void Conference_WiredClearApply(void)
-{
-    uint8_t waitNum,i;
-    uint16_t *idArr;
 
-    waitNum = DataQueue.getSize(waitQueue);
-    if(waitNum > 0) {
-        idArr = MALLOC(waitNum * sizeof(uint16_t));
-        DataQueue.toArray(waitQueue,idArr);
-        for(i = 0; i<waitNum; i++) {
-            EXE_MIC_DISWAIT(idArr[i]);
-            if(micMode == mApply)
-                EXE_REVOKE_APPLY(idArr[i]);
-        }
-        DataQueue.empty(waitQueue);
-    }
-}
 
 /**
 * @Name  		Conference_ChangeSysMode
@@ -1339,38 +2417,82 @@ static void Conference_WiredClearApply(void)
 */
 static void Conference_ChangeSysMode(SysMode_EN mode)
 {
-	/* 检查当前模式和目标模式，如果当前是“会议模式”下，目标模式可随便切换，
-		如果当前是“非会议模式”下，则除了会议模式别的模式都不能切换
-	(换句话说在非会议模式[EditID,Sign,Vote]下，必须先结束该模式，切换到
-	会议模式[conference]，才可以再切换成别的非会议模式) */
-	ERR_CHECK(!(sysMode != mConference && mode != mConference), return);
+    ConfProtocol_S confProt;
+    WifiUnitProtocol_S wifiProt;
 
- 	switch(mode){
-		case mConference:{
-			EXE_CONFERENCE_MODE();
-			sysMode = mConference;
-		}
-		break;
+    /* 检查当前模式和目标模式，如果当前是“会议模式”下，目标模式可随便切换，
+    	如果当前是“非会议模式”下，则除了会议模式别的模式都不能切换
+    (换句话说在非会议模式[EditID,Sign,Vote]下，必须先结束该模式，切换到
+    会议模式[conference]，才可以再切换成别的非会议模式) */
+    ERR_CHECK(!(SysInfo.sysMode != kMode_Conference && mode != kMode_Conference), return);
 
-		case mEditID:{
-			EXE_EDIT_ID_MODE();
-			sysMode = mEditID;
-			Conference_WiredOutlineAllUnit();		
-		}break;
+    switch(mode) {
+    case kMode_Conference: {
+        Protocol.conference(&confProt,WHOLE_BROADCAST_ID,BASIC_MSG,CONFERENCE_MODE,CONFERENCE_MODE,null,null);
+        Protocol.wifiUnit(&wifiProt,0,EnterMeetingMode_MtoU_G,SysInfo.sysMode,SysInfo.wifiAllowOpen);
 
-		case mSign:{
-			uint16_t id;
+        ExternalCtrl.transmit(EX_CTRL_DEST,&confProt);
+        WiredUnit.transmit(&confProt);
+        WifiUnit.transmit(kMode_Wifi_Multicast,&wifiProt);
 
-			for(id = 0;id < WIRED_UNIT_MAX_ONLINE_NUM;id++)
-				UnitInfo.wired[id].sign = false;
-					
-			for(id = 0;id < WIFI_UNIT_MAX_ONLINE_NUM;id++)
-				UnitInfo.wifi[id].sign = false;
-			
-			EXE_SIGN_MODE();
-			sysMode = mSign;
-		}break;
-	}
+        SysInfo.sysMode = kMode_Conference;
+    }
+    break;
+
+    case kMode_EditID: {
+        Conference_OfflineAllUnit();
+
+        Protocol.conference(&confProt,WHOLE_BROADCAST_ID,BASIC_MSG,EDIT_ID_MODE,START_EDIT_ID_MODE,null,null);
+        Protocol.wifiUnit(&wifiProt,0,EnterEditingIDMtoU_G,(SysInfo.wifiCurEditID >> 8),(SysInfo.wifiCurEditID & 0xFF));
+
+        ExternalCtrl.transmit(EX_CTRL_DEST,&confProt);
+        WiredUnit.transmit(&confProt);
+        WifiUnit.transmit(kMode_Wifi_Multicast,&wifiProt);
+
+        SysInfo.sysMode = kMode_EditID;
+
+    }
+    break;
+
+    case kMode_Sign: {
+        uint16_t id;
+
+        for(id = 0; id < WIRED_UNIT_MAX_ONLINE_NUM; id++)
+            UnitInfo.wired[id].sign = false;
+
+        for(id = 0; id < WIFI_UNIT_MAX_ONLINE_NUM; id++)
+            UnitInfo.wifi[id].sign = false;
+
+
+        Conference_SignInstruction(null,(UnitType_EN)null,WIRED_CMD(START_SIGN_MODE,0,0),SysInfo.totalSignNum,SysInfo.currentSignNum);
+
+        SysInfo.sysMode = kMode_Sign;
+    }
+    break;
+
+    case kMode_Vote: {
+        uint16_t id;
+
+        for(id = 0; id < WIRED_UNIT_MAX_ONLINE_NUM; id++)
+            UnitInfo.wired[id].vote = null;
+
+        for(id = 0; id < WIFI_UNIT_MAX_ONLINE_NUM; id++)
+            UnitInfo.wifi[id].vote = null;
+
+        Protocol.conference(&confProt,WHOLE_BROADCAST_ID,BASIC_MSG,VOTE_MODE,VoteModeCode[SysInfo.voteMode],null,null);
+        Protocol.wifiUnit(&wifiProt,0,EnterVoteMode_MtoU_G,0,SysInfo.voteMode);
+
+        ExternalCtrl.transmit(EX_CTRL_DEST,&confProt);
+        WiredUnit.transmit(&confProt);
+        WifiUnit.transmit(kMode_Wifi_Multicast,&wifiProt);
+
+        SysInfo.sysMode = kMode_Vote;
+    }
+    break;
+
+    default:
+        break;
+    }
 }
 
 
@@ -1383,19 +2505,22 @@ static void Conference_ChangeSysMode(SysMode_EN mode)
 *
 * @return
 */
-static void Conference_ChairmanPriority(uint16_t id)
+static void Conference_ChairmanPriority(UnitType_EN type,uint16_t id)
 {
 
-    ERR_CHECK(id > 0 && id <= WIRED_UNIT_MAX_ONLINE_NUM,return);
-    ERR_CHECK(UnitInfo.wired[id].attr == aChairman,return);
+    ERR_CHECK(!(type == tWired && (id <= 0 || id > WIRED_UNIT_MAX_ONLINE_NUM || UnitInfo.wired[id].attr != aChairman)),return);
+    ERR_CHECK(!(type == tWifi && (id <= 0 || id > WIFI_UNIT_MAX_ONLINE_NUM || UnitInfo.wifi[id].attr != aChairman)),return);
 
     /* 关闭所有代表单元 */
-    Conference_WiredCloseAllMic(aRepresentative);
-    /* 打开主席单元 */
-    Conference_WiredOpenMic(id,CHM_OPEN_MIC);
+    Conference_CloseAllMic(tWired,aRepresentative);
+    Conference_CloseAllMic(tWifi,aRepresentative);
 
     /* 取消所有话筒申请 */
-    Conference_WiredClearApply();
+    Conference_ClearApplyMic(tWired);
+    Conference_ClearApplyMic(tWifi);
+
+    /* 打开主席单元 */
+    Conference_MicControl(id,type,type == tWired ? WIRED_CMD(CHM_OPEN_MIC,0,0) : WIFI_CMD(ApplyOpenMic_UtoM_D,0,0));
 }
 
 
@@ -1411,12 +2536,18 @@ static void Conference_ChairmanPriority(uint16_t id)
 */
 static void Conference_ResetAudioChannel(UnitType_EN type)
 {
-//	ConfHandler_S *confHandler = &ConfHandler[type];
     uint8_t ch;
 
-    DataQueue.empty(channelQueue);
-    for(ch = 1; ch <= WIRED_UNIT_MAX_ALLWO_OPEN; ch++) {
-        DataQueue.enter(channelQueue,&ch);
+    if(type == tWired) {
+        DataQueue.empty(WiredChannelQueue);
+        for(ch = 1; ch <= WIRED_UNIT_MAX_ALLWO_OPEN; ch++) {
+            DataQueue.enter(WiredChannelQueue,&ch);
+        }
+    } else if(type == tWifi) {
+        DataQueue.empty(WifiChannelQueue);
+        for(ch = 1; ch <= WIFI_UNIT_MAX_ALLWO_OPEN; ch++) {
+            DataQueue.enter(WifiChannelQueue,&ch);
+        }
     }
 }
 
@@ -1433,7 +2564,11 @@ static uint8_t Conference_GetAudioChannel(UnitType_EN type)
 {
     uint8_t ch;
 
-    DataQueue.exit(channelQueue,&ch);
+    if(type == tWired)
+        DataQueue.exit(WiredChannelQueue,&ch);
+    else if(type == tWifi)
+        DataQueue.exit(WifiChannelQueue,&ch);
+
     ch += 0x80;
     return ch;
 }
@@ -1451,9 +2586,17 @@ static void Conference_GiveAudioChannel(UnitType_EN type,uint8_t ch)
 {
     if(ch < 0x81 || ch > WIRED_UNIT_MAX_ALLWO_OPEN + 0x80)
         return;
+
     ch -= 0x80;
-    DataQueue.enter(channelQueue,&ch);
+
+    if(type == tWired)
+        DataQueue.enter(WiredChannelQueue,&ch);
+    else if(type == tWifi)
+        DataQueue.enter(WifiChannelQueue,&ch);
 }
+
+
+
 
 /**
 * @Name  		Conference_UnitOnlineNum
@@ -1481,8 +2624,23 @@ static void Conference_UnitOnlineNum(UnitOnlineNum *onlineNum)
 */
 static SysMode_EN Conference_GetSysMode(void)
 {
-    return sysMode;
+    return SysInfo.sysMode;
 }
+
+/**
+* @Name  		Conference_GetConfSysInfo
+* @Author  		KT
+* @Description
+* @para
+*
+*
+* @return
+*/
+static ConfSysInfo_S Conference_GetConfSysInfo(void)
+{
+    return SysInfo;
+}
+
 
 /**
 * @Name  		Conference_GetCurrentEditedID
@@ -1495,16 +2653,14 @@ static SysMode_EN Conference_GetSysMode(void)
 */
 static uint16_t Conference_GetCurrentEditedID(void)
 {
-    return currentEditID;
+    return SysInfo.wiredCurEditID;
 }
 
 /**
 * @Name  		Conference_WiredUnitInfo
 * @Author  		KT
 * @Description	对单元处理任务下发单元信息结构指针
-*				(需要在引入头文件前定义宏 LICENSE_ACCESS_UNIT_INFO)
 *
-* @License		LICENSE_ACCESS_UNIT_INFO
 *
 * @para
 *
@@ -1514,6 +2670,198 @@ static UnitInfo_S *Conference_WiredUnitInfo(void)
 {
     return UnitInfo.wired;
 }
+
+/**
+* @Name  		Conference_WiredUnitInfo
+* @Author  		KT
+* @Description	对单元处理任务下发单元信息结构指针
+*
+*
+* @para
+*
+* @return
+*/
+static UnitInfo_S *Conference_WifiUnitInfo(void)
+{
+    return UnitInfo.wifi;
+}
+
+
+/**
+* @Name  		Conference_GetMusicFile
+* @Author  		KT
+* @Description
+* @para
+*
+*
+* @return
+*/
+
+static void Conference_GetMusicFile(const char *path)
+{
+    FILINFO *filinfo;
+    uint8_t fileNum, i;
+    char *suffix = null;
+
+    UsbAudio.musicFileNum = 0;
+
+    fileNum = UsbDisk.getFileList(path,&filinfo);
+
+    for(i = 0; i < fileNum; i++) {
+        suffix = strrchr(filinfo[i].fname, '.');
+        if(suffix != null) {
+            if (strcmp(suffix, ".mp3") == 0) {
+                debug("%s\r\n",filinfo[i].fname);
+                UsbAudio.musicFile[UsbAudio.musicFileNum++] = &filinfo[i];
+            } else if (strcmp(suffix, ".wav") == 0) {
+                debug("%s\r\n",filinfo[i].fname);
+                UsbAudio.musicFile[UsbAudio.musicFileNum++] = &filinfo[i];
+            }
+            if(UsbAudio.musicFileNum >= MUSIC_FILE_LIST_MAX_LEN)
+                break;
+        }
+        suffix = null;
+    }
+}
+
+/**
+* @Name  		Conference_UsbStateListener
+* @Author  		KT
+* @Description
+* @para
+*
+*
+* @return
+*/
+static void Conference_UsbStateListener(status_t sta)
+{
+
+
+    switch(sta) {
+    case kStatus_DEV_Attached: {
+        debug("Usb disk is attached!!\r\n");
+    }
+    break;
+    case kStatus_DEV_Detached: {
+        UsbAudio.mcuConnectUsb = false;
+		
+//		/* 当MCU的USB断开时，判断当前音频录放功能的状态，如果是空闲，而且页面停留在录放功能里面，就切换页面 */
+//		if(UsbAudio.audSta == kStatus_Aud_Idle && (ScreenCurrentPage == RECORD_CARD_PAUSE_Page || ScreenCurrentPage == RECORD_CARD_PLAY_Page ||   \
+//			ScreenCurrentPage == RECORD_CARD_RECOEDING_Page || 	ScreenCurrentPage ==RECORD_CARD_WAIT_RECORD_Page)){
+//			Conference_ScreenPageSwitch(RECORD_CARD_INITING_Page);
+//		}
+        debug("Usb disk is detached!!\r\n");
+    }
+    break;
+    case kStatus_FS_Mounted: {
+//			uint8_t i;
+        UsbAudio.mcuConnectUsb = true;
+
+        debug("Usb file system is mounted!!\r\n");
+        debug("Usb disk free size : %dMB\r\n",(UsbDisk.freeSize()/1024));
+
+        Conference_GetMusicFile(USBDISK_ROOT);
+
+//			debug("Music file num = %d \r\n",UsbAudHandler.num);
+//			for(i = 0;i < UsbAudHandler.num;i++){
+//				debug("%s \r\n",UsbAudHandler.fMusic[i]->fname);
+//			}
+
+    }
+    break;
+    case kStatus_DEV_Idle: {
+        debug("Usb idle!!\r\n");
+    }
+    break;
+    }
+}
+
+
+/**
+* @Name  		Conference_AudioStateListener
+* @Author  		KT
+* @Description
+* @para
+*
+*
+* @return
+*/
+static void Conference_AudioStateListener(AudState_S *sta)
+{
+    ScreenProtocol_S screenProt;
+	uint8_t exdata[5];
+	char *name;
+
+    switch(sta->state) {
+    case kStatus_Aud_Playing: {
+		if(UsbAudio.audSta != sta->state) {
+            UsbAudio.audSta = sta->state;
+			Conference_ScreenPageSwitch(RECORD_CARD_PLAY_Page);
+            debug("Music playing .. \r\n");
+        }
+		
+        if(UsbAudio.playIndex != sta->playIndex) {
+            UsbAudio.playIndex = sta->playIndex;
+            if(UsbAudio.playIndex > 0 && UsbAudio.playIndex <= UsbAudio.musicFileNum) {
+				name = MALLOC(72);
+				strcpy(name,UsbAudio.musicFile[UsbAudio.playIndex - 1]->fname);
+                debug("Music name : \'%s\'  ... \r\n",name);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x03A0),72,(uint8_t *)name);
+				FREE(name);
+            }
+        }
+    }
+    break;
+    case kStatus_Aud_Pause: {
+        if(UsbAudio.audSta != sta->state) {
+            UsbAudio.audSta = sta->state;
+			Conference_ScreenPageSwitch(RECORD_CARD_PAUSE_Page);
+            debug("Music pause .. \r\n");
+        }
+        
+    }
+    break;
+    case kStatus_Aud_Recording: {
+		char time[10] = {0};
+	
+		if(UsbAudio.audSta != sta->state) {
+            UsbAudio.audSta = sta->state;
+        	Conference_ScreenPageSwitch(RECORD_CARD_RECOEDING_Page);
+			/* 显示停止录音的按钮 */
+			exdata[1] = 0x01;
+			Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0505),2,exdata);
+        }
+//		debug("Audio recording sec = %d \r\n",sta->runTime);
+		sprintf(time,"%02d:%02d:%02d",sta->runTime / 3600,sta->runTime / 60,sta->runTime % 60);
+        Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x06A0),9,(uint8_t *)time);
+    }
+    break;
+
+	case kStatus_Aud_RecStoped:{
+		/* 隐藏录音的按钮 */
+		exdata[1] = 0x00;
+		Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0505),2,exdata);
+		UsbAudio.audSta = kStatus_Aud_Idle;
+		Conference_ScreenPageSwitch(RECORD_CARD_PAUSE_Page);
+	}
+	break;
+    case kStatus_Aud_UsbBroken: 
+	case kStatus_Aud_StarPlayErr:
+	case kStatus_Aud_StarRecErr:
+	case kStatus_Aud_UsbTimeout:{
+        Conference_ScreenPageSwitch(RECORD_CARD_INITING_Page);
+		memset(&UsbAudio,0,sizeof(UsbAudio));
+		UsbAudio.audSta = kStatus_Aud_Idle;
+    }
+    break;
+
+    default:
+        break;
+    }
+}
+
+
+
 
 /**
 * @Name  		Conference_OpenMicListDebug
@@ -1531,28 +2879,42 @@ static void Conference_OpenMicListDebug(void)
     uint8_t len;
 
 
-    len = DataQueue.getSize(chmMicQueue);
+    len = DataQueue.getSize(WiredChmMicQueue);
     idArr = MALLOC(len * sizeof(uint16_t));
-    DataQueue.toArray(chmMicQueue,idArr);
+    DataQueue.toArray(WiredChmMicQueue,idArr);
 
-//	debug("==========================================================\r\n");
-//	debug("========              Open mic list            ===========\r\n");
-    debug("==========================================================\r\n");
+    debug("======================== Wired ===========================\r\n");
     debug("==      Attr      ==      ID      ==      Channel       ==\r\n");
     for(i=0; i<len; i++)
         debug("==    Chairman    ==      %02d      ==        %02X          ==\r\n",idArr[i],UnitInfo.wired[idArr[i]].channel);
     FREE(idArr);
 
-    len = DataQueue.getSize(rpsMicQueue);
+    len = DataQueue.getSize(WiredRpsMicQueue);
     idArr = MALLOC(len * sizeof(uint16_t));
-    DataQueue.toArray(rpsMicQueue,idArr);
+    DataQueue.toArray(WiredRpsMicQueue,idArr);
 
     for(i=0; i<len; i++)
         debug("== Representative ==      %02d      ==        %02X          ==\r\n",idArr[i],UnitInfo.wired[idArr[i]].channel);
     debug("==========================================================\r\n");
     FREE(idArr);
 
+    len = DataQueue.getSize(WifiChmMicQueue);
+    idArr = MALLOC(len * sizeof(uint16_t));
+    DataQueue.toArray(WifiChmMicQueue,idArr);
 
+    debug("======================== Wifi ============================\r\n");
+    debug("==      Attr      ==      ID      ==      Channel       ==\r\n");
+    for(i=0; i<len; i++)
+        debug("==    Chairman    ==      %02d      ==        %02X          ==\r\n",idArr[i],UnitInfo.wifi[idArr[i]].channel);
+    FREE(idArr);
+
+    len = DataQueue.getSize(WifiRpsMicQueue);
+    idArr = MALLOC(len * sizeof(uint16_t));
+    DataQueue.toArray(WifiRpsMicQueue,idArr);
+
+    for(i=0; i<len; i++)
+        debug("== Representative ==      %02d      ==        %02X          ==\r\n",idArr[i],UnitInfo.wifi[idArr[i]].channel);
+    debug("==========================================================\r\n");
+    FREE(idArr);
 }
-
 

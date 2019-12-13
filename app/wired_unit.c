@@ -12,11 +12,6 @@
  *
  **/
 /*******************************************************************************
- * permission
- ******************************************************************************/
-#define LICENSE_ACCESS_UNIT_INFO
-
-/*******************************************************************************
  * includes
  ******************************************************************************/
 /* OS */
@@ -34,16 +29,24 @@
  * Definitions
  ******************************************************************************/
 /**** 网络相关参数定义 ****/
-#define HOST_LOCAL_IP										{172,16,4,215}
-#define HOST_GATEWAY										{172,16,4,254}
+#define HOST_LOCAL_IP										{192,168,0,117}
+#define HOST_GATEWAY										{192,168,0,1}
 #define HOST_NETMASK										{255,255,255,0}
 #define HOST_PORT											(1026)
 
+/* 单元指令数据监听多播地址及端口 */
 #define UNIT_DATA_MULTICAST_IP								{224,0,2,9}
 #define UNIT_DATA_MULTICAST_PORT							(1028)
 
+/* 单元指令数据目的多播地址及端口 */
 #define UNIT_DEST_IP										{224,0,2,7}
 #define UNIT_DEST_PORT										(1026)
+
+/* 网络接口 */
+#define NETWORK_ENET_TYPE									eth1
+
+/* 网络类型 */
+#define NETWORK_TYPE										NETWORK_TYPE_ETHERNET
 
 /* 任务堆栈大小及优先级 */
 #define WIRED_UNIT_TASK_STACK_SIZE							(2048)
@@ -60,7 +63,7 @@
 #define POLLING_TIME_INTERVAL_MS							(1)
 
 /* 轮询无应答判断为离线次数 */
-#if 1   
+#if 0   
 /* 测试用 */
 #define POLLING_NO_REPLY_OFFLINE_COUNT						(1200)
 #else
@@ -69,7 +72,7 @@
 
 #define IS_APPLY_ACCESS_SYS(_type,_ph,_pl)					((_pl == RPS_APPLY_ACCESS_SYS || _pl == CHM_APPLY_ACCESS_SYS) && _type == BASIC_MSG && _ph == CONFERENCE_MODE)
 #define IS_CONFIRM_ID(_type,_ph,_pl)						(_pl == UNIT_CONFIRM_ID && _type == BASIC_MSG && _ph == EDIT_ID_MODE)
-#define IS_UNIT_REPLY_ONLINE(_type,_ph,_pl)					((prot.pl == RPS_REPLY_ONLINE || prot.pl == CHM_REPLY_ONLINE) && prot.type == BASIC_MSG && prot.ph == CONFERENCE_MODE)
+#define IS_UNIT_REPLY_ONLINE(_type,_ph,_pl)					((_pl == RPS_REPLY_ONLINE || _pl == CHM_REPLY_ONLINE) && _type == BASIC_MSG && _ph == CONFERENCE_MODE)
 
 /* 单元主机通讯协议格式 */
 typedef struct {
@@ -95,8 +98,8 @@ static void WiredUnit_AccessSystem(uint16_t id,Network_Mac_S *unitSrcMac,UnitAtt
 //static void WiredUnit_InfoInit(void);
 
 
-static void WiredUnit_NotifyConference(NOTIFY_KEYWORD kWord, ConfProtocol_S *prot);
-static void WiredUnit_NotifyConferenceWithExData(NOTIFY_KEYWORD kWord, ConfProtocol_S *prot, uint16_t exLen, uint8_t *exData);
+static void WiredUnit_NotifyConference(ConfProtocol_S *prot);
+static void WiredUnit_NotifyConferenceWithExData(ConfProtocol_S *prot, uint16_t exLen, uint8_t *exData);
 /*******************************************************************************
  * Variables
  ******************************************************************************/
@@ -115,6 +118,16 @@ static bool isEthConnected;
 
 static UnitInfo_S *unitInfo;
 
+static const uint8_t VotePollingCode[] = 
+{ POLLING_VOTE, POLLING_VOTE_SIGN, POLLING_VOTE_F, POLLING_VOTE_FSIGN, 
+  POLLING_ELECT, POLLING_ELECT_SIGN, POLLING_ELECT_F, POLLING_ELECT_FSIGN, 
+  POLLING_RATE, POLLING_RATE_SIGN, POLLING_RATE_F, POLLING_RATE_FSIGN, 
+  POLLING_VOTECUSTOM_F_2_S, POLLING_VOTECUSTOM_F_2, POLLING_VOTECUSTOM_L_2_S, POLLING_VOTECUSTOM_L_2, 
+  POLLING_VOTECUSTOM_F_3_S, POLLING_VOTECUSTOM_F_3, POLLING_VOTECUSTOM_L_3_S, POLLING_VOTECUSTOM_L_3, 
+  POLLING_VOTECUSTOM_F_4_S, POLLING_VOTECUSTOM_F_4, POLLING_VOTECUSTOM_L_4_S, POLLING_VOTECUSTOM_L_4, 
+  POLLING_VOTECUSTOM_F_5_S, POLLING_VOTECUSTOM_F_5, POLLING_VOTECUSTOM_L_5_S, POLLING_VOTECUSTOM_L_5, 
+  POLLING_SATISFACTION, POLLING_SATISFACTION_SIGN, POLLING_SATISFACTION_F, POLLING_SATISFACTION_FSIGN
+ };
 
 /* 轮询定时器 */
 static TimerHandle_t pollingTimer;
@@ -161,8 +174,8 @@ static void WiredUnit_LaunchTask(void *pvParameters) {
     taskPara = MALLOC(sizeof(Network_EthernetTaskPara_S));
 
     /* 网口初始化 */
-    ethPara->index = eth0;
-    ethPara->type = NETWORK_TYPE_ETHERNET;
+    ethPara->index = NETWORK_ENET_TYPE;
+    ethPara->type = NETWORK_TYPE;
     NETWORK_SET_ADDR(ethPara->ip,hostIp.addr0,hostIp.addr1,hostIp.addr2,hostIp.addr3);
     NETWORK_SET_ADDR(ethPara->gateway,hostGw.addr0,hostGw.addr1,hostGw.addr2,hostGw.addr3);
     NETWORK_SET_ADDR(ethPara->netmask,hostMask.addr0,hostMask.addr1,hostMask.addr2,hostMask.addr3);
@@ -189,7 +202,7 @@ static void WiredUnit_LaunchTask(void *pvParameters) {
     /* 获取单元数据指针 */
 	unitInfo = Conference.wiredUnitInfo();
 
-    netTaskHandler = Network.creatTask(eth0,tEthernet,taskPara);
+    netTaskHandler = Network.creatTask(NETWORK_ENET_TYPE,tEthernet,taskPara);
 
     /* 启动单元数据处理线程 */
     if (xTaskCreate(WiredUnit_NetDataProcessTask, "NetDataProcessTask", WIRED_UNIT_TASK_STACK_SIZE, null, WIRED_UNIT_TASK_PRIORITY, null) != pdPASS) {
@@ -199,9 +212,6 @@ static void WiredUnit_LaunchTask(void *pvParameters) {
     /* 启动轮询定时器 */
     pollingTimer = xTimerCreate("PollingTimer",POLLING_TIME_MS,pdTRUE,null,WiredUnit_PollingTimer);
     
-
-    debug("Wired unit init done!!\r\n");
-
     vTaskDelete(null);
 }
 
@@ -218,12 +228,15 @@ static void WiredUnit_LaunchTask(void *pvParameters) {
 static void WiredUnit_PollingTimer(TimerHandle_t xTimer) {
     uint16_t id;
     ConfProtocol_S prot;
+	ConfSysInfo_S info;
 
     memset(&prot,0,sizeof(ConfProtocol_S));
 
-	switch(Conference.getSysMode()){
+	info = Conference.getConfSysInfo();
+
+	switch(info.sysMode){
 		/* 会议模式 */
-		case mConference:{
+		case kMode_Conference:{
 			/* 轮询从1号ID开始 */
 			for(id = 1; id<WIRED_UNIT_MAX_ONLINE_NUM; id++) {
 				/* 如果单元在线，发轮询指令 */
@@ -234,8 +247,7 @@ static void WiredUnit_PollingTimer(TimerHandle_t xTimer) {
 					} else {
 						Protocol.conference(&prot,id,BASIC_MSG,CONFERENCE_MODE,UNIT_OFFLINE,0,0);
 						unitInfo[id].online = false;
-						WiredUnit_NotifyConference(NK_CONFERENCE_MSG,&prot);
-//						debug("Unit id = %d offline \r\n",id);
+						WiredUnit_NotifyConference(&prot);
 					}
 					WiredUnit_NetDataTransmit(&prot);
 					DELAY(POLLING_TIME_INTERVAL_MS);
@@ -244,11 +256,11 @@ static void WiredUnit_PollingTimer(TimerHandle_t xTimer) {
 		}break;
 		
 		/* 编ID模式 */
-		case mEditID:{
+		case kMode_EditID:{
 			Protocol.conference(&prot, WHOLE_BROADCAST_ID, POLLING_MSG, EDIT_ID_POLLING, CURRENT_ID,0,Conference.getCurrentEditId());
 			WiredUnit_NetDataTransmit(&prot);
 		}break;
-		case mSign:{
+		case kMode_Sign:{
 			/* 轮询从1号ID开始 */
 			for(id = 1; id<WIRED_UNIT_MAX_ONLINE_NUM; id++) {
 				/* 如果单元在线，且未进行签到，发轮询指令 */
@@ -259,7 +271,18 @@ static void WiredUnit_PollingTimer(TimerHandle_t xTimer) {
 				}
 			}
 		}break; 
-		case mVote:break;
+		case kMode_Vote:{
+			/* 轮询从1号ID开始 */
+			for(id = 1; id<WIRED_UNIT_MAX_ONLINE_NUM; id++) {
+				if(unitInfo[id].online) {
+					Protocol.conference(&prot,id,POLLING_MSG,VOTE_POLLING,VotePollingCode[info.voteMode],0,0);
+					WiredUnit_NetDataTransmit(&prot);
+					DELAY(POLLING_TIME_INTERVAL_MS);
+				}
+			}
+		}break;
+		
+		default:break;
 	}
     
 }
@@ -297,7 +320,7 @@ static void WiredUnit_NetDataProcessTask(void *pvParameters) {
     taskBuf->data = MALLOC(UNIT_DATA_RECEIVE_BUF_SIZE);
     taskBuf->maxLen = UNIT_DATA_RECEIVE_BUF_SIZE;
 	
-    debug("Unit device network data process task start!!\r\n");
+    debug("Wired unit data process task start!!\r\n");
 	
 	xTimerStart(pollingTimer,0);
     while(1) {
@@ -330,7 +353,7 @@ static void WiredUnit_NetDataProcessTask(void *pvParameters) {
 
 
                 /* 其他会议消息发送给会议任务处理 */
-                WiredUnit_NotifyConference(NK_CONFERENCE_MSG,&prot);
+                WiredUnit_NotifyConference(&prot);
                 goto clear_buf;
             } else {
                 /* 单元状态为离线 */
@@ -342,7 +365,7 @@ static void WiredUnit_NetDataProcessTask(void *pvParameters) {
 				
 				/* 单元确认当前ID(编ID),需要向会议任务报告申请ID的MAC */
 				else if(IS_CONFIRM_ID(prot.type,prot.ph,prot.pl)){
-					WiredUnit_NotifyConferenceWithExData(NK_CONFERENCE_MSG,&prot,6,(uint8_t *)unitSrcMac);
+					WiredUnit_NotifyConferenceWithExData(&prot,6,(uint8_t *)unitSrcMac);
 					goto clear_buf;
 				}
                 /* 如果为非在线状态而且不是申请进入系统及编ID，不处理当前数据，直接返回给单元离线 */
@@ -352,9 +375,9 @@ static void WiredUnit_NetDataProcessTask(void *pvParameters) {
                     goto clear_buf;
                 }
             }
-
-            /* 单元机进系统 */
+            
 access_sys:
+			/* 单元机进系统 */
             if(prot.pl == RPS_APPLY_ACCESS_SYS)
                 WiredUnit_AccessSystem(prot.id,unitSrcMac,aRepresentative);
             else if(prot.pl == CHM_APPLY_ACCESS_SYS)
@@ -392,7 +415,7 @@ static void WiredUnit_AccessSystem(uint16_t id,Network_Mac_S *unitSrcMac,UnitAtt
         Protocol.conference(&prot,id, BASIC_MSG, CONFERENCE_MODE, ID_DUPICATE,null,null);
 
         WiredUnit_NetDataTransmit(&prot);
-        WiredUnit_NotifyConference(NK_CONFERENCE_MSG,&prot);
+        WiredUnit_NotifyConference(&prot);
     }
     /* 设备ID不在线,或已在线但MAC相同 */
     else {
@@ -405,7 +428,7 @@ static void WiredUnit_AccessSystem(uint16_t id,Network_Mac_S *unitSrcMac,UnitAtt
 
 		/* 如果设备本来已经在线，就不发单元上线通知给会议任务 */
 		if(!devInfo->online){
-			WiredUnit_NotifyConference(NK_CONFERENCE_MSG,&prot);
+			WiredUnit_NotifyConference(&prot);
 	        devInfo->online = true;
 		}
     }
@@ -420,7 +443,7 @@ static void WiredUnit_AccessSystem(uint16_t id,Network_Mac_S *unitSrcMac,UnitAtt
 *
 * @return
 */
-static void WiredUnit_NotifyConferenceWithExData(NOTIFY_KEYWORD kWord, ConfProtocol_S *prot, uint16_t exLen, uint8_t *exData) {
+static void WiredUnit_NotifyConferenceWithExData(ConfProtocol_S *prot, uint16_t exLen, uint8_t *exData) {
 
     Notify_S *notify;
 
@@ -429,7 +452,7 @@ static void WiredUnit_NotifyConferenceWithExData(NOTIFY_KEYWORD kWord, ConfProto
 
     notify = MALLOC(sizeof(Notify_S) + exLen);
 
-    notify->nSrc = sWiredUnit;
+    notify->nSrc = kType_NotiSrc_WiredUnit;
 
 //    notify->kWord = kWord;
 
@@ -451,8 +474,8 @@ static void WiredUnit_NotifyConferenceWithExData(NOTIFY_KEYWORD kWord, ConfProto
 *
 * @return
 */
-static void WiredUnit_NotifyConference(NOTIFY_KEYWORD kWord, ConfProtocol_S *prot) {
-    WiredUnit_NotifyConferenceWithExData(kWord, prot, null, null);
+static void WiredUnit_NotifyConference(ConfProtocol_S *prot) {
+    WiredUnit_NotifyConferenceWithExData(prot, null, null);
 }
 
 

@@ -17,23 +17,24 @@
 #include <stdarg.h>  
 #include <string.h>
 #include <stdint.h>
-#include "app_common.h"
+#include "app.h"
 
 /* 型号名称 */
 #define DEVICE_MODEL_NAME								(deviceModel[DEVICE_MODEL])
 
 
-const char deviceModel[2][10] = {"TS-0300M",""};
+const char deviceModel[2][10] = {"TS-0300M","OK1061-S"};
 const int  MONTH_PER_YEAR=12;
 const char szEnglishMonth[MONTH_PER_YEAR][4]={ "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
-char buildTime[40];
+static char buildTime[40];
+static uint32_t iYear,iMonth,iDay,iHour,iMin,iSec;
 
 char *APP_BuildTime(void)
 {        
 	char szTmpDate[40]={0};
 	char szTmpTime[20]={0};
 	char szMonth[4]={0};
-	int iYear,iMonth,iDay,iHour,iMin,iSec;//,,
+
 
 	//获取编译日期、时间
 	sprintf(szTmpDate,"%s",__DATE__); //"Sep 18 2010"
@@ -62,4 +63,12 @@ void APP_PrintDeviceMsg(void){
 	debug("********************************************\r\n\r\n");
 }
 
+void APP_GetBuildDate(uint16_t *year,uint16_t *mon,uint16_t *day){
+	if(year == null || mon == null || day == null)
+		return;
+
+	*year = iYear;
+	*mon = iMonth;
+	*day = iDay;
+}
 

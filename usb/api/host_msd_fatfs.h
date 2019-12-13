@@ -28,7 +28,7 @@ typedef enum _usb_host_msd_run_state
     kUSB_HostMsdRunWaitSetInterface, /*!< wait set interface done */
 		kUSB_HostMsdRunFSMount,						/*!< file system mount */
 		kUSB_HostMsdRunFSUnmount,						/*!< file system unmount */
-		kUSB_HostMsdRunStorageOperation,	/*!< storage operation*/
+		kUSB_HostMsdRunStorageOperation,	/*!< storage operation */
 //    kUSB_HostMsdRunMassStorageTest   /*!< execute mass storage test code */
 } usb_host_msd_run_state_t;
 

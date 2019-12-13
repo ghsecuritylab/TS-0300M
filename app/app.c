@@ -14,30 +14,40 @@
 /*******************************************************************************
  * includes
  ******************************************************************************/
-#include "FreeRTOS.h"
-#include "task.h"
-#include "queue.h"
-#include "timers.h"
-#include "stdio.h"
-#include "fsl_device_registers.h"
-#include "debug.h"
-#include "board.h"
-#include "fsl_lpuart_freertos.h"
-#include "fsl_lpuart.h"
-#include "pin_mux.h"
-#include "clock_config.h"
-#include "fsl_common.h"
-#include "usb_disk.h"
-#include "ram.h"
-#include "audio_sai.h"
-#include "audio_record.h"
-#include "network.h"
-
-#include "pin_mux.h"
-#include "clock_config.h"
+/* APP */ 
+#include "app.h"
 #include "wired_unit.h"
 #include "conference.h"
 #include "external_ctrl.h"
+#include "wifi_unit.h"
+#include "screen.h"
+
+/* OS */
+#include "FreeRTOS.h"
+#include "task.h"
+#include "timers.h"
+
+/* API */
+#include "network.h"
+#include "usb_disk.h"
+#include "audio.h"
+#include "time.h"
+
+/* HAL */
+#include "hal.h"
+#include "hal_gpio.h"
+#include "hal_rtc.h"
+#include "hal_spi_flash.h"
+
+/* LIB */
+#include "stdio.h"
+
+/* SDK */
+#include "board.h"
+#include "pin_mux.h"
+#include "fsl_iomuxc.h"
+
+/* DRIVER */
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
@@ -53,177 +63,185 @@
  ******************************************************************************/
 static void testTask_1(void *pvParameters);
 static void testTask_2(void *pvParameters);
-static void recordTextTask(void *pvParameters);
 
 static void App_LauncherTask(void *pvParameters);
 /*******************************************************************************
  * Variables
  ******************************************************************************/
 
-
 /*******************************************************************************
  * Code
  ******************************************************************************/
 
-/*
+/**
  * @brief Application entry point.
  */
 int main(void)
 {
-    /* Init board hardware. */
-    BOARD_ConfigMPU();
-    BOARD_InitPins();
-    BOARD_BootClockRUN();
-    BOARD_InitDebugConsole();
-    BOARD_InitModuleClock();
+	HAL_Init();
 
+	/* 打印软件设备信息 */
 	APP_PRINT_DEV_MSG();
 	
-//    debug("Hardware init finish!!\r\n");
-    Network.init();
-
-    UsbDisk.init();
-
-    /* test */
     if (xTaskCreate(App_LauncherTask, "Launcher", LAUNCHER_STACK_SIZE, null, LAUNCHER_PRIORITY, NULL) != pdPASS) {
         debug("create host task error\r\n");
     }
 
-//    if (xTaskCreate(testTask_1, "testTask_2", TESTTASK_STACK_SIZE, "testTask_2", 2, NULL) != pdPASS)
+    if (xTaskCreate(testTask_1, "testTask_1", TESTTASK_STACK_SIZE, null, TESTTASK_PRIORITY, NULL) != pdPASS)
+    {
+        debug("create host task error\r\n");
+    }
+	
+//	if (xTaskCreate(testTask_2, "testTask_2", TESTTASK_STACK_SIZE, NULL, TESTTASK_PRIORITY, NULL) != pdPASS)
 //    {
 //        debug("create host task error\r\n");
 //    }
-//
-//	if (xTaskCreate(recordTextTask, "recordTextTask", TESTTASK_STACK_SIZE, NULL, TESTTASK_PRIORITY, NULL) != pdPASS)
-//    {
-//        debug("create host task error\r\n");
-//    }
+
 
     vTaskStartScheduler();
     while(1);
 }
 
+//#undef send
 
 
 static void App_LauncherTask(void *pvParameters)
 {
 
-    debug("Tasks is being launch.....\r\n");
+	taskENTER_CRITICAL();	
+	
+	Network.init();
+    UsbDisk.init();
 
+	
+	taskEXIT_CRITICAL();	
+	
+	
+    debug("Tasks is being launch.....\r\n");
+	
+	Conference.launch();
+	
     WiredUnit.launch();
 
-    Conference.launch();
+	WifiUnit.launch();
+	
+    ExternalCtrl.launch();
 
     UsbDisk.launch();
+	
+	Screen.launch();
 
-    ExternalCtrl.launch();
+	Audio.launch();
+
+	Time.launch();
 
 //	debug_init();
     vTaskDelete(null);
     while(1);
 }
 
+
+
 /*!
  * @brief testTask_1
  */
+ static HAL_GpioIndex MuteCtrl;
+static HAL_GpioIndex MuteCtrl2;
+static HAL_GpioIndex StaLed;
+
 static void testTask_1(void *pvParameters)
 {
-	
-    vTaskSuspend(NULL);
+	bool staled = false;
+
+	MuteCtrl = HAL_GpioInit(GPIO1, 24, kGPIO_DigitalOutput, null, null);
+	MuteCtrl2 = HAL_GpioInit(GPIO2, 29, kGPIO_DigitalOutput, null, null);
+	StaLed = HAL_GpioInit(GPIO1, 20, kGPIO_DigitalOutput, null, null);
+	HAL_SetGpioLevel(MuteCtrl, 0);
+	HAL_SetGpioLevel(MuteCtrl2, 0);
+
+	DELAY(500);
+
+	HAL_SetGpioLevel(MuteCtrl, 1);
+	HAL_SetGpioLevel(MuteCtrl2, 1);
+
     while(1) {
-		
+		staled = !staled;
+		HAL_SetGpioLevel(StaLed, staled);
+		DELAY(1000);
     }
 }
 
-
-static TimerHandle_t testTimer1; // 定义句柄
-static volatile bool alarm;
-void testTimer1CallBack(TimerHandle_t xTimer)
-{
-    alarm = true;
-    debug("testTimer1 alarm!!\r\n");
-}
 /*!
  * @brief  testTask_2
  */
 static void testTask_2(void *pvParameters)
 {
+	
+	char dateTimeStr[30] = {0};
+	uint8_t sta[5];
+	uint16_t id;
+	
+	uint8_t *data,*txBuf,*rxBuf;
+	
+	
+	DELAY(3000);
+	data = MALLOC(4096);
+	txBuf = MALLOC(4200);
+	rxBuf = MALLOC(4200);
+	
     debug("testTask_2 start!!\r\n");
+
+	id = HAL_FlashDeviceID(tW25Q64);
+	debug("Flash id = %X\r\n",id);
+	
+	HAL_FlashBufferConfig(tW25Q64,txBuf,rxBuf);
+	
+	
+	
+	HAL_FlashReadSector(tW25Q64,0x1000,data);
+	
+	debug("data : \r\n");
+	for(id = 0;id < 4096;id ++){
+		debug(" %X",data[id]);
+	}
+	debug("\r\n\r\n");
+	
+	for(id = 0;id <4096;id++){
+		data[id] = id % 256;
+	}
+	
+	
+	HAL_FlashEraseSector(tW25Q64,0x1000);
+	
+	while(HAL_FlashGetBusy(tW25Q64)){
+		DELAY(100);
+	}
+	
+	HAL_FlashWriteSector(tW25Q64,0x1000,data);
+	
+	while(HAL_FlashGetBusy(tW25Q64)){
+		DELAY(100);
+	}
+	
+	memset(data,0,4096);
+	
+	HAL_FlashReadSector(tW25Q64,0x1000,data);
+	
+	debug("data : \r\n");
+	for(id = 0;id < 4096;id ++){
+		debug(" %X",data[id]);
+	}
+	debug("\r\n\r\n");
+	
+	
+	vTaskDelete(null);
 
     while(1) {
         DELAY(1000);
-        debug("testTask_2 : %s\r\n",(char *)pvParameters);
+//        debug("testTask_2 : %s\r\n",(char *)pvParameters);
     }
 }
 
-static void recordTextTask(void *pvParameters)
-{
-
-
-    uint8_t sec = 120;
-    uint32_t size = 8192;
-    uint8_t *data;
-    char *path;
-    AudioRecordHandler_S *audioRecordHandler;
-    AudioRecordHandler_S *audioRecordHandler2;
-    AudioRecordHandler_S *audioRecordHandler3;
-//    AudioRecordHandler_S *audioRecordHandler4;
-
-    debug("recordTextTask start!!\r\n");
-
-//		debug("Ram free size = 0x%x\r\n",xPortGetFreeHeapSize());
-    data = MALLOC(size);
-
-
-    testTimer1 = xTimerCreate("testTimer1",MsToTick(sec*1000),pdFALSE,( void * ) 0,testTimer1CallBack);
-    path = MALLOC(50);
-
-
-    UsbDisk.waitDevConnect();
-
-    sprintf(path,"%s/%s",USBDISK_ROOT,"audioTest");
-    audioRecordHandler = AudioRecord.creat(path,saiAudio);
-
-    sprintf(path,"%s/%s",USBDISK_ROOT,"netdata2");
-    audioRecordHandler2 = AudioRecord.creat(path,netAudio);
-
-    sprintf(path,"%s/%s",USBDISK_ROOT,"netdata3");
-    audioRecordHandler3 = AudioRecord.creat(path,netAudio);
-
-//		sprintf(path,"%s/%s",USBDISK_ROOT,"netdata4");
-//		audioRecordHandler4 = AudioRecord.creat(path,netAudio);
-    if(audioRecordHandler == NULL) {
-        debug("audio record creat fail\r\n");
-        vTaskSuspend(NULL);
-    }
-
-    debug("audio record creat sucess\r\n");
-    xTimerStart(testTimer1,0);
-    AudioRecord.saiStart(audioRecordHandler);
-    while(!alarm) {
-        memset(data,'2',size);
-        AudioRecord.netData(audioRecordHandler2,data,size);
-        memset(data,'3',size);
-        AudioRecord.netData(audioRecordHandler3,data,size);
-//			memset(data,'4',size);
-//			AudioRecord.netData(audioRecordHandler4,data,size);
-        DELAY(80);
-    }
-
-    AudioRecord.saiStop(audioRecordHandler);
-
-    AudioRecord.dismiss(audioRecordHandler);
-    AudioRecord.dismiss(audioRecordHandler2);
-    AudioRecord.dismiss(audioRecordHandler3);
-//		AudioRecord.dismiss(audioRecordHandler4);
-
-    while(1) {
-        debug("testTask_1 : task finish!\r\n");
-        DELAY(20);
-        debug("Ram free size = 0x%x\r\n",xPortGetFreeHeapSize());
-        vTaskSuspend(NULL);
-    }
-}
 
 
 void HardFault_Handler(void)
