@@ -18,6 +18,8 @@
  ******************************************************************************/
 #define UART_HAL_INSTANCE_NUM				(8)
 
+#define UART_INTERRUPT_PRIORITY				(3)
+
 typedef struct {
 	LPUART_Type *base;
 	UartIrqCallback callback;
@@ -78,7 +80,8 @@ status_t HAL_UartInit(HAL_UartHandler_S handle, HAL_UartConfig_S *config)
 		
 		if(config->txIrq)
 			LPUART_EnableInterrupts(uartHandle->base, kLPUART_TxDataRegEmptyInterruptEnable);
-		
+
+		NVIC_SetPriority(uartIrq[instance], UART_INTERRUPT_PRIORITY);
 	    EnableIRQ(uartIrq[instance]);
 	}
 

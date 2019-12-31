@@ -10,15 +10,19 @@
 typedef void * DataQueueHandler_S;
 
 typedef struct {
-    DataQueueHandler_S *(*creat)(uint32_t ,uint32_t);
-	bool (*enter)(DataQueueHandler_S *, void *);
-	bool (*exit)(DataQueueHandler_S *, void *);
-	uint32_t (*getSize)(DataQueueHandler_S *);
-	uint32_t (*search)(DataQueueHandler_S *,void *);
-	void (*toArray)(DataQueueHandler_S *,void *);
-	bool (*deleted)(DataQueueHandler_S *,uint32_t );
-	void (*empty)(DataQueueHandler_S * );
+    DataQueueHandler_S *(*creat)(uint32_t queueLen,uint32_t itemSize);
+	bool (*enter)(DataQueueHandler_S *handler, void *item);
+	bool (*exit)(DataQueueHandler_S *handler, void *item);
+	uint32_t (*getSize)(DataQueueHandler_S *handler);
+	uint32_t (*search)(DataQueueHandler_S *handler,void *item);
+	void (*toArray)(DataQueueHandler_S *handler,void *array);
+	bool (*deleted)(DataQueueHandler_S *handler,uint32_t index);
+	void (*empty)(DataQueueHandler_S *handler);
+	bool (*front)(DataQueueHandler_S *handler,void *item);
+	bool (*rear)(DataQueueHandler_S *handler,void *item);
 } DataQueue_S;
+
+
 
 /*******************************************************************************
  * API

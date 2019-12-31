@@ -23,7 +23,7 @@
 #define DEVICE_MODEL_NAME								(deviceModel[DEVICE_MODEL])
 
 
-const char deviceModel[2][10] = {"TS-0300M","OK1061-S"};
+const char deviceModel[2][15] = {"TS-0300M","OK1061-S"};
 const int  MONTH_PER_YEAR=12;
 const char szEnglishMonth[MONTH_PER_YEAR][4]={ "Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
 static char buildTime[40];

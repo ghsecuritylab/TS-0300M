@@ -173,8 +173,9 @@ static void Audio_LaunchTask(void *pvParameters)
 //    HAL_SetGpioLevel(UsbPowerCtrlIo, true);
 	USB_POWER_ENABLE(true);
 
-    /* 初始化音频编解码器 */
-    HAL_AudCodecInit(tNau88c22);
+    /* 初始化音频编解码器 (Dante ,WT2000) */
+    HAL_AudCodecInit(tNau88c22_D);
+	HAL_AudCodecInit(tNau88c22_W);
 
     /* 初始化信号量 */
     UartCmdRecvSem = xSemaphoreCreateBinary();
@@ -244,6 +245,9 @@ static void Audio_CmdProcecssTask(void *pvParameters)
 			}
 			FREE(cmd.fileName);
 
+			if(audState->state != kStatus_Aud_Idle && audState->state != kStatus_Aud_Pause)
+                break;
+
             USB_CONNET_TO(WT2000);
 			
             if(!Audio_WaitUsbConnect(AUDIO_WAIT_USB_CONNECT_TIME)){
@@ -255,12 +259,12 @@ static void Audio_CmdProcecssTask(void *pvParameters)
 				break;
 			}
 
-            if(audState->state != kStatus_Aud_Idle && audState->state != kStatus_Aud_Pause)
-                break;
+            DELAY(1000);
 			
-
+			Wt2000_AckRecvEnable(true);
             Wt2000_AudioRecord(AUDIO_RECORD_DIR,(const char *)audState->recFile);
             Audio_WaitAck(ack);
+			Wt2000_AckRecvEnable(false);
             if(ack[0] == 0) {
 				audState->runTime = 0;
                 audState->state = kStatus_Aud_Recording;
@@ -280,8 +284,10 @@ static void Audio_CmdProcecssTask(void *pvParameters)
 		
 		
         case tStopRec: {
+			Wt2000_AckRecvEnable(true);
             Wt2000_RecordStop();
             Audio_WaitAck(ack);
+			Wt2000_AckRecvEnable(false);
             xTimerStop(AudRunTimer,0);
             audState->runTime = 0;
 
@@ -310,10 +316,14 @@ static void Audio_CmdProcecssTask(void *pvParameters)
 				USB_CONNET_TO(MCU);
 				break;
 			}
+			
+			DELAY(1000);
 
             if(audState->state == kStatus_Aud_Idle || audState->state == kStatus_Aud_Pause) {
+				Wt2000_AckRecvEnable(true);
                 Wt2000_AudioPlayPause();
                 Audio_WaitAck(ack);
+				Wt2000_AckRecvEnable(false);
                 if(ack[0] == 0) {
                     audState->state = kStatus_Aud_Playing;
                     xTimerStart(AudRunTimer,0);
@@ -322,12 +332,15 @@ static void Audio_CmdProcecssTask(void *pvParameters)
                     if(Listener != null) 
                         Listener(audState);
                     audState->state = kStatus_Aud_Idle;
+					USB_CONNET_TO(MCU);
                 }
             }
 
             else if(audState->state == kStatus_Aud_Playing) {
+				Wt2000_AckRecvEnable(true);
                 Wt2000_AudioPlayPause();
                 Audio_WaitAck(ack);
+				Wt2000_AckRecvEnable(false);
                 audState->state = kStatus_Aud_Pause;
                 if(Listener != null) {
                     Listener(audState);
@@ -338,10 +351,10 @@ static void Audio_CmdProcecssTask(void *pvParameters)
 
         /* 播放下一首 */
         case tPlayNext: {
-            USB_CONNET_TO(WT2000);
-
             if(audState->state != kStatus_Aud_Playing && audState->state != kStatus_Aud_Pause)	break;
-
+			
+			USB_CONNET_TO(WT2000);
+			
             /* 等待USB挂载 */
             if(!Audio_WaitUsbConnect(AUDIO_WAIT_USB_CONNECT_TIME)){
 				audState->state = kStatus_Aud_UsbTimeout;
@@ -350,18 +363,19 @@ static void Audio_CmdProcecssTask(void *pvParameters)
 				audState->state = kStatus_Aud_Idle;
 				break;
 			}
-
+			Wt2000_AckRecvEnable(true);
             Wt2000_PlayNext();
             Audio_WaitAck(ack);
+			Wt2000_AckRecvEnable(false);
             audState->runTime = 0;
         }
         break;
 
         /* 播放上一首 */
         case tPlayPrevious: {
-            USB_CONNET_TO(WT2000);
-
             if(audState->state != kStatus_Aud_Playing && audState->state != kStatus_Aud_Pause)	break;
+			
+			USB_CONNET_TO(WT2000);
 
             /* 等待USB挂载 */
             if(!Audio_WaitUsbConnect(AUDIO_WAIT_USB_CONNECT_TIME)){
@@ -371,17 +385,20 @@ static void Audio_CmdProcecssTask(void *pvParameters)
 				audState->state = kStatus_Aud_Idle;
 				break;
 			}
-
+			Wt2000_AckRecvEnable(true);
             Wt2000_PlayPrevious();
             Audio_WaitAck(ack);
+			Wt2000_AckRecvEnable(false);
             audState->runTime = 0;
         }
         break;
 
         /* 停止 */
         case tStopPlay: {
+			Wt2000_AckRecvEnable(true);
             Wt2000_PlayStop();
             Audio_WaitAck(ack);
+			Wt2000_AckRecvEnable(false);
 
             xTimerStop(AudRunTimer,0);
             audState->runTime = 0;
@@ -458,7 +475,7 @@ static uint8_t Audio_WaitAckByTime(uint8_t *data,uint32_t time)
     uint8_t i,count = 0;
     ERR_CHECK(data != 0, return 0);
 
-    Wt2000_AckRecvEnable(true);
+//    Wt2000_AckRecvEnable(true);
 
     /* 获取到信号量后延时，然后再获取一次信号量（不等待），
     	清除串口中断接收多字节时的重复信号量 */
@@ -477,7 +494,7 @@ static uint8_t Audio_WaitAckByTime(uint8_t *data,uint32_t time)
         debug("%X ",data[i]);
     debug("\r\n");
 #endif
-    Wt2000_AckRecvEnable(false);
+//    Wt2000_AckRecvEnable(false);
     return count;
 }
 
@@ -500,17 +517,23 @@ static bool Audio_WaitUsbConnect(uint8_t waitTime)
     uint8_t ack[5],cont;
 
     do {
+		Wt2000_AckRecvEnable(true);
         Wt2000_QueryState(kType_WtCmd_LinkSta);
         cont = Audio_WaitAck(ack);
+		Wt2000_AckRecvEnable(false);
         if(cont > 0 && ack[0] == kType_WtCmd_LinkSta && ack[1] == 2) {
             return true;
-        } else {
+        } 
+//		else {
 //            if(Listener != null)
 //                Listener(kStatus_Aud_UsbTimeout,null,null);
-            debug("Usb connect timeout\r\n");
-            return false;
-        }
+//            debug("Usb connect timeout\r\n");
+//            return false;
+//        }
     } while(waitTime--);
+
+	debug("Usb connect timeout\r\n");
+    return false;
 }
 
 static bool Audio_CheckUsbConnect(void){
@@ -542,8 +565,10 @@ static void Audio_RunningTimer(TimerHandle_t xTimer)
 	}
 
 	/* 检查音频录放状态 */
+	Wt2000_AckRecvEnable(true);
 	Wt2000_QueryState(kType_WtCmd_State);
 	Audio_WaitAck(ack);
+	Wt2000_AckRecvEnable(false);
 	if(ack[0] == kType_WtCmd_State){
         playSta = ack[1];
 	}	
@@ -553,8 +578,10 @@ static void Audio_RunningTimer(TimerHandle_t xTimer)
 		if(playSta == kStatus_WtPlay_Playing){
 	        audState->runTime++;
 	        /* 获取当前播放索引 */
+			Wt2000_AckRecvEnable(true);
 	        Wt2000_QueryState(kType_WtCmd_CurrPlayFile);
 	        Audio_WaitAck(ack);
+			Wt2000_AckRecvEnable(false);
 	        if(ack[0] == kType_WtCmd_CurrPlayFile && audState->playIndex != ack[2]){
 	            audState->playIndex = ack[2];
 				audState->runTime = 0;

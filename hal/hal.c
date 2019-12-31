@@ -40,6 +40,7 @@ static void HAL_PinConfig(void){
 	/* RTL8306 enable control*/
 	IOMUXC_SetPinMux(IOMUXC_GPIO_B1_12_GPIO2_IO28,0U);
 	IOMUXC_SetPinConfig(IOMUXC_GPIO_B1_12_GPIO2_IO28, 0xB0A9u);	
+	
 	/* RTL8306 enable control (temp test) */
 	IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B0_11_GPIO1_IO11,0U);
 	IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B0_11_GPIO1_IO11, 0xB0A9u);	
@@ -56,22 +57,29 @@ static void HAL_PinConfig(void){
 	IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_09_GPIO1_IO25,0U);                                  
 	IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B1_09_GPIO1_IO25, 0xB0A9u);
 
-	/* Mute 1754-1 */
+	/* Lineout control H13 */
 	IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_08_GPIO1_IO24,0U);                                  
 	IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B1_08_GPIO1_IO24, 0xB0A9u);
 
-	/* Mute 1754-2 */
+	/* AFC control D14 */
 	IOMUXC_SetPinMux(IOMUXC_GPIO_B1_13_GPIO2_IO29,0U);                                  
 	IOMUXC_SetPinConfig(IOMUXC_GPIO_B1_13_GPIO2_IO29, 0xB0A9u);
 
-	/* AFC */
-	IOMUXC_SetPinMux(IOMUXC_GPIO_B0_06_GPIO2_IO06,0U);                                  
-	IOMUXC_SetPinConfig(IOMUXC_GPIO_B0_06_GPIO2_IO06, 0xB0A9u);
+	/* Partition Out Ctrl L10  */
+	IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B0_15_GPIO1_IO15,0U);                                  
+	IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B0_15_GPIO1_IO15, 0xB0A9u);
 
-	/* state led */
+	/* Device running signal (L12) */
 	IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_04_GPIO1_IO20,0U);                                  
 	IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B1_04_GPIO1_IO20, 0xB0A9u);
-	
+
+	/* 485 & 232 Power control */
+	IOMUXC_SetPinMux(IOMUXC_GPIO_SD_B1_03_GPIO3_IO03,0U);                                  
+	IOMUXC_SetPinConfig(IOMUXC_GPIO_SD_B1_03_GPIO3_IO03, 0xB0A9u);
+
+	/* 485 Transceiver control */
+	IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_05_GPIO1_IO21,0U);                                  
+	IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B1_05_GPIO1_IO21, 0xB0A9u);
 
 #if (defined(LPI2C1_ENABLE) && LPI2C1_ENABLE)
 	/* I2C1 */
@@ -91,10 +99,16 @@ static void HAL_PinConfig(void){
 	
 #if (defined(LPI2C3_ENABLE) && LPI2C3_ENABLE)
 	/* I2C3 */
-	IOMUXC_SetPinMux(IOMUXC_GPIO_EMC_22_LPI2C3_SCL, 1U);
-    IOMUXC_SetPinMux(IOMUXC_GPIO_EMC_21_LPI2C3_SDA, 1U);
-	IOMUXC_SetPinConfig(IOMUXC_GPIO_EMC_22_LPI2C3_SCL,0xD8B0u); 
-	IOMUXC_SetPinConfig(IOMUXC_GPIO_EMC_21_LPI2C3_SDA,0xD8B0u); 
+//	IOMUXC_SetPinMux(IOMUXC_GPIO_EMC_22_LPI2C3_SCL, 1U);
+//    IOMUXC_SetPinMux(IOMUXC_GPIO_EMC_21_LPI2C3_SDA, 1U);
+//	IOMUXC_SetPinConfig(IOMUXC_GPIO_EMC_22_LPI2C3_SCL,0xD8B0u); 
+//	IOMUXC_SetPinConfig(IOMUXC_GPIO_EMC_21_LPI2C3_SDA,0xD8B0u); 
+
+	IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_07_LPI2C3_SCL, 1U);
+    IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_06_LPI2C3_SDA, 1U);
+	IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B1_07_LPI2C3_SCL,0xD8B0u); 
+	IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B1_06_LPI2C3_SDA,0xD8B0u); 
+
 #endif
 
 #if (defined(LPSPI1_ENABLE) && LPSPI1_ENABLE)
@@ -198,10 +212,10 @@ static void HAL_PinConfig(void){
 
 #if (defined(UART3_ENABLE) && UART3_ENABLE)
 	/* UART3 */
-	IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_06_LPUART3_TX,0U);									
-	IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_07_LPUART3_RX,0U);   
-	IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B1_06_LPUART3_TX,0x10B0u);								
-	IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B1_07_LPUART3_RX,0x10B0u);
+	IOMUXC_SetPinMux(IOMUXC_GPIO_B0_08_LPUART3_TX,0U);									
+	IOMUXC_SetPinMux(IOMUXC_GPIO_B0_09_LPUART3_RX,0U);   
+	IOMUXC_SetPinConfig(IOMUXC_GPIO_B0_08_LPUART3_TX,0x10B0u);								
+	IOMUXC_SetPinConfig(IOMUXC_GPIO_B0_09_LPUART3_RX,0x10B0u);
 #endif
 
 #if (defined(UART4_ENABLE) && UART4_ENABLE)
@@ -235,17 +249,17 @@ static void HAL_PinConfig(void){
 
 #if (defined(SAI1_ENABLE) && SAI1_ENABLE)
 		/* SAI1 */
-//		IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_12_SAI1_RX_DATA00, 1U);
-//		IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_13_SAI1_TX_DATA00, 1U);
-//		IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_14_SAI1_TX_BCLK, 1U);
-//		IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_15_SAI1_TX_SYNC, 1U);
-//		IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_09_SAI1_MCLK, 1U);
-//	
-//		IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B1_12_SAI1_RX_DATA00,0x10B0u);							  
-//		IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B1_13_SAI1_TX_DATA00,0x10B0u);							   
-//		IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B1_14_SAI1_TX_BCLK, 0x10B0u); 
-//		IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B1_15_SAI1_TX_SYNC,0x10B0u); 
-//		IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B1_09_SAI1_MCLK,0x10B0u); 
+		IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_12_SAI1_RX_DATA00, 1U);
+		IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_13_SAI1_TX_DATA00, 1U);
+		IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_14_SAI1_TX_BCLK, 1U);
+		IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_15_SAI1_TX_SYNC, 1U);
+		IOMUXC_SetPinMux(IOMUXC_GPIO_AD_B1_09_SAI1_MCLK, 1U);
+	
+		IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B1_12_SAI1_RX_DATA00,0x10B0u);							  
+		IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B1_13_SAI1_TX_DATA00,0x10B0u);							   
+		IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B1_14_SAI1_TX_BCLK, 0x10B0u); 
+		IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B1_15_SAI1_TX_SYNC,0x10B0u); 
+		IOMUXC_SetPinConfig(IOMUXC_GPIO_AD_B1_09_SAI1_MCLK,0x10B0u); 
 #endif
 	
 #if (defined(SAI2_ENABLE) && SAI2_ENABLE)
@@ -515,7 +529,7 @@ void HAL_Init(void){
 	HAL_PinConfig();
 	HAL_EnetConfig();
 	HAL_I2cMasterConfig();
-//	HAL_SaiInit();
+////	HAL_SaiInit();
 	HAL_UartConfig();
 	HAL_SpiMasterConfig();
 }

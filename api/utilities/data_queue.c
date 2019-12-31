@@ -57,6 +57,9 @@ static uint32_t DataQueue_Search(DataQueueHandler_S *handler,void *item);
 static void DataQueue_ItemArray(DataQueueHandler_S *handler,void *array);
 static bool DataQueue_Delete(DataQueueHandler_S *handler,uint32_t index);
 static void DataQueue_Empty(DataQueueHandler_S *handler);
+static bool DataQueue_Front(DataQueueHandler_S *handler,void *item);
+static bool DataQueue_Rear(DataQueueHandler_S *handler,void *item);
+
 /*******************************************************************************
  * Variables
  ******************************************************************************/
@@ -69,6 +72,8 @@ DataQueue_S DataQueue = {
 	.toArray = DataQueue_ItemArray,
 	.deleted = DataQueue_Delete,
 	.empty = DataQueue_Empty,
+	.front = DataQueue_Front,
+	.rear = DataQueue_Rear,
 };
  
  
@@ -336,6 +341,55 @@ static void DataQueue_Empty(DataQueueHandler_S *handler){
 	queue->front = null;
 	queue->rear = null;
 }
+
+
+ /**
+* @Name  		DataQueue_Front
+* @Author  		KT
+* @Description 	只获取队列头部项目，不进行出队列操作
+* @para    		
+*				
+*
+* @return		
+*/
+static bool DataQueue_Front(DataQueueHandler_S *handler,void *item){
+	Queue_S *queue = (Queue_S *)handler;
+	QueueItem_S *qItem;
+	
+	if(queue == null || item == null || queue->qLength == 0)
+		return false;
+		
+	qItem = queue->front;
+	memcpy(item,qItem->item,queue->itemSize);
+
+	return true;
+}
+
+ /**
+* @Name  		DataQueue_Front
+* @Author  		KT
+* @Description 	只获取队列尾部项目，不进行出队列操作
+* @para    		
+*				
+*
+* @return		
+*/
+static bool DataQueue_Rear(DataQueueHandler_S *handler,void *item){
+	Queue_S *queue = (Queue_S *)handler;
+	QueueItem_S *qItem;
+	
+	if(queue == null || item == null || queue->qLength == 0)
+		return false;
+		
+	qItem = queue->rear;
+	memcpy(item,qItem->item,queue->itemSize);
+
+	return true;
+}
+
+
+
+
 
 #ifdef DATA_QUEUE_ERGODIC_DEBUG
 void DataQueue_ErgodicDebug(DataQueueHandler_S *handler){

@@ -7,11 +7,41 @@
 #include <stdint.h>
 
 /*******************************************************************************
- * @ brief : Global Configuration
- *
+ * 									全局定义
  ******************************************************************************/
-#define ENABLE											(true)
-#define DISABLE											(false)
+#define ENABLE												(true)
+#define DISABLE												(false)
+
+/*******************************************************************************
+ * 							   网络及相关默认配置
+ ******************************************************************************/
+#define EX_CTRL_LOCAL_IP_DEF								{172,16,14,65}
+#define EX_CTRL_GATEWAY_DEF									{172,16,14,254}
+#define EX_CTRL_NETMASK_DEF									{255,255,255,0}
+#define EX_CTRL_PORT_DEF									(50000)
+
+/*******************************************************************************
+ * 							   主机及会议相关默认配置
+ ******************************************************************************/
+/* 最大有线单元数 */
+#define WIRED_UNIT_MAX_ONLINE_NUM							(4096)
+	
+/* 最大WIFI单元数 */
+#define WIFI_UNIT_MAX_ONLINE_NUM							(300)
+	
+/* 默认最大允许开话筒数（有线） */
+#define WIRED_UNIT_MAX_ALLWO_OPEN_DEF						(8)
+	
+/* 默认最大允许开话筒数（WIFI） */
+#define WIFI_UNIT_MAX_ALLWO_OPEN_DEF						(6)
+
+/* 默认语言 */
+#define CONFERENCE_LANGUAGE_DEF								(Chinese)
+
+
+/*******************************************************************************
+ * 								外部接口/硬件配置
+ ******************************************************************************/
 
 /******************************** I2C 1 ~ 3 ************************************/
 
@@ -36,7 +66,7 @@
 #endif
 
 #if defined(LPI2C3_ENABLE) && LPI2C3_ENABLE
-#define LPI2C3_BAUDRATE 								(100000U)
+#define LPI2C3_BAUDRATE 								(400000U)
 #endif
 
 #endif
@@ -105,7 +135,7 @@
 #define UART2_ENABLE									DISABLE
 
 /* UART3 接口使能  */
-#define UART3_ENABLE									DISABLE
+#define UART3_ENABLE									ENABLE
 
 /* UART4 接口使能  */
 #define UART4_ENABLE									DISABLE
@@ -167,8 +197,6 @@
 #define AUDIO_PLL_POST_DIVIDER							(1)
 #define AUDIO_PLL_NUMERATOR								(77)
 #define AUDIO_PLL_DENOMINATOR							(100)
-
-
 
 
 

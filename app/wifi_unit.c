@@ -220,7 +220,7 @@ static void WifiUnit_NetDataProcessTask(void *pvParameters)
     Network_Addr_S *unitSrcIp;
     uint8_t exDataLen, *exData;
     uint8_t *recvBuffer, recvLength;
-	ConfSysInfo_S info;
+	ConfSysInfo_S *info;
 
     debug("Wifi unit data process task start!!\r\n");
 
@@ -233,6 +233,9 @@ static void WifiUnit_NetDataProcessTask(void *pvParameters)
 
     xTimerStart(wifiPollingTmr,0);
 
+	/* 广播模式及数量 */
+	info = Conference.getConfSysInfo();
+	WifiUnit_NetDataTransmit(kMode_Wifi_Multicast,Protocol.wifiUnit(&prot,0,ChangeMicManage_MtoU_G,info->config->micMode,info->config->wifiAllowOpen));
     while(1) {
         xSemaphoreTake(RecvSemaphore,MAX_NUM);
 
@@ -364,7 +367,7 @@ clear_buf:
 */
 static void WifiUnit_AccessSystem(uint16_t id,Network_Mac_S *unitSrcMac,Network_Addr_S *unitSrcIp,UnitAttr_EN attr)
 {
-    ConfSysInfo_S info;
+    ConfSysInfo_S *info;
     uint8_t content[10],contLen = 0;
     WifiUnitProtocol_S prot;
     UnitInfo_S *devInfo;
@@ -376,9 +379,8 @@ static void WifiUnit_AccessSystem(uint16_t id,Network_Mac_S *unitSrcMac,Network_
 
     /* 设备ID已在线，且MAC与申请进系统MAC不同 */
     if(devInfo->online && !NETWORK_COMPARISON_MAC((&devInfo->mac),unitSrcMac)) {
-        Protocol.wifiUnit(&prot,0, IDRepeatingMtoU_G, 0, 0);
-
-        WifiUnit_NetDataTransmit(kMode_Wifi_Multicast,&prot);
+        Protocol.wifiUnit(&prot,0, IDRepeatingMtoU_G, id >> 8, id & 0xFF);
+//        WifiUnit_NetDataTransmit(kMode_Wifi_Multicast,&prot);
         WifiUnit_NotifyConference(&prot);
     }
     /* 设备ID不在线,或已在线但MAC相同,回复注册成功并回复主机状态 */
@@ -387,29 +389,29 @@ static void WifiUnit_AccessSystem(uint16_t id,Network_Mac_S *unitSrcMac,Network_
 
         /* 获取系统状态并下发 */
         info = Conference.getConfSysInfo();
-        content[0] = info.sysMode;
-        switch(info.sysMode) {
+        content[0] = info->state.sysMode;
+        switch(info->state.sysMode) {
         case kMode_Conference:
         default:
-            content[1] = info.micMode;
-            content[2] = info.wifiAllowOpen;
+            content[1] = info->config->micMode;
+            content[2] = info->config->wifiAllowOpen;
             contLen = 3;
             break;
         case kMode_Sign:
-            content[1] = (uint8_t)info.totalSignNum >> 8;
-            content[2] = (uint8_t)info.totalSignNum;
-            content[3] = (uint8_t)info.currentSignNum >> 8;
-            content[4] = (uint8_t)info.currentSignNum;
+            content[1] = (uint8_t)info->state.totalSignNum >> 8;
+            content[2] = (uint8_t)info->state.totalSignNum;
+            content[3] = (uint8_t)info->state.currentSignNum >> 8;
+            content[4] = (uint8_t)info->state.currentSignNum;
             content[5] = unitInfo[id].sign;
-            content[6] = info.micMode;
-            content[7] = info.wifiAllowOpen;
+            content[6] = info->config->micMode;
+            content[7] = info->config->wifiAllowOpen;
             contLen = 8;
             break;
         case kMode_Vote:
-            content[1] = reserved;
-            content[2] = info.micMode;
-            content[3] = info.wifiAllowOpen;
-            content[4] = (uint8_t)info.currentSignNum;
+            content[1] = null;
+            content[2] = info->config->micMode;
+            content[3] = info->config->wifiAllowOpen;
+            content[4] = (uint8_t)info->state.currentSignNum;
             content[5] = unitInfo[id].sign;
             contLen = 6;
             break;
@@ -502,14 +504,14 @@ static void WifiUnit_PollingTimer(TimerHandle_t xTimer)
 {
     uint16_t id, i ;
     WifiUnitProtocol_S prot;
-    ConfSysInfo_S info;
+    ConfSysInfo_S *info;
     static uint8_t editIdPollingCnt;
 
 	memset(&prot,0,sizeof(WifiUnitProtocol_S));
 
     info = Conference.getConfSysInfo();
 
-    switch(info.sysMode) {
+    switch(info->state.sysMode) {
     case kMode_Conference:
     case kMode_Sign:
     case kMode_Vote:
@@ -520,7 +522,7 @@ static void WifiUnit_PollingTimer(TimerHandle_t xTimer)
 
             if(unitInfo[id].online) {
                 if(unitInfo[id].pollCount < WIFI_POLLING_NO_REPLY_OFFLINE_COUNT) {
-                    Protocol.wifiUnit(&prot,id,PollUnitl_MtoU_D,info.sysMode,0);
+                    Protocol.wifiUnit(&prot,id,PollUnitl_MtoU_D,info->state.sysMode,0);
                     unitInfo[id].pollCount++;
                 } else {
                     Protocol.wifiUnit(&prot,id,MasterAskforReenterSysMtoU_D,0,0);
@@ -538,7 +540,7 @@ static void WifiUnit_PollingTimer(TimerHandle_t xTimer)
 
     case kMode_EditID:
         if(++ editIdPollingCnt >= 10) {
-            Protocol.wifiUnit(&prot,0,EnterEditingIDMtoU_G,(uint8_t)(info.wifiCurEditID >> 8),(uint8_t)(info.wifiCurEditID));
+            Protocol.wifiUnit(&prot,0,EnterEditingIDMtoU_G,(uint8_t)(info->state.wifiCurEditID >> 8),(uint8_t)(info->state.wifiCurEditID));
             WifiUnit_NetDataTransmit(kMode_Wifi_Multicast,&prot);
             editIdPollingCnt = 0;
         }
@@ -602,7 +604,7 @@ static void WifiUnit_NotifyConference(WifiUnitProtocol_S *prot)
 *
 * @return
 */
-static void WifiUnit_NetDataTransmitWithExData(WifiSendMode_EN mode,WifiUnitProtocol_S *prot, uint16_t exLen, uint8_t *exData)
+static void  WifiUnit_NetDataTransmitWithExData(WifiSendMode_EN mode,WifiUnitProtocol_S *prot, uint16_t exLen, uint8_t *exData)
 {
 
     uint8_t length,i;
@@ -668,7 +670,7 @@ static void WifiUnit_NetDataTransmitWithExData(WifiSendMode_EN mode,WifiUnitProt
                 memcpy(&netBuf[i]->data[4],exData,exLen);
             }
 
-            /* 插后面 */
+            /* 插后面10次 */
             xQueueSendToBack(SendQueue, &(netBuf[i]), MAX_NUM);
         }
 		

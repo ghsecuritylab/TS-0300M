@@ -248,8 +248,6 @@ static void Screen_Transmit(ScreenProtocol_S *prot){
 
 static void Screen_CtrlUartCallback(uint8_t count,void *para)
 {
-	/* @brief 这个回调函数里面不可以使用debug函数 */
-
 	RecvCount = count;
 }
 

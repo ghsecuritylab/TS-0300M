@@ -6,6 +6,8 @@
 #include "stdint.h"
 #include "network.h"
 #include "protocol.h"
+#include "database.h"
+#include "dsp.h"
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
@@ -63,28 +65,39 @@ typedef struct {
 	通过 NotifySrcType_EN 强转short型数据，通过位判断确定操作目标*/
 #define EXE_DEST							uint16_t
 #define ALL_DEST							(0xFFFF)
-#define EX_CTRL_DEST						(kType_NotiSrc_PC|kType_NotiSrc_Web|kType_NotiSrc_UartCtrl)
+#define EX_CTRL_DEST						(kType_NotiSrc_PC|kType_NotiSrc_Web/*|kType_NotiSrc_UartCtrl*/)
 #define ALL_UNIT							(kType_NotiSrc_WifiUnit|kType_NotiSrc_WiredUnit)
 
 
 /********************** 单元设备相关数据结构及定义 *****************************/ 
 /* 单元类型数量 */
 #define UNIT_TYPE_NUM								(2)
- 
+
+
+#ifndef WIRED_UNIT_MAX_ONLINE_NUM
 /* 最大有线单元数 */
 #define WIRED_UNIT_MAX_ONLINE_NUM					(4096)
+#endif
 
-/* 最大允许开话筒数（有线） */
-#define WIRED_UNIT_MAX_ALLWO_OPEN					(8)
-
+#ifndef WIFI_UNIT_MAX_ONLINE_NUM
 /* 最大WIFI单元数 */
 #define WIFI_UNIT_MAX_ONLINE_NUM					(300)
+#endif
 
+#ifndef WIRED_UNIT_MAX_ALLWO_OPEN
+/* 最大允许开话筒数（有线） */
+#define WIRED_UNIT_MAX_ALLWO_OPEN					(8)
+#endif
+
+#ifndef WIFI_UNIT_MAX_ALLWO_OPEN
 /* 最大允许开话筒数（WIFI） */
 #define WIFI_UNIT_MAX_ALLWO_OPEN					(6)
+#endif
 
+#ifndef WIFI_UNIT_START_ID
 /* WIFI单元起始ID */
 #define WIFI_UNIT_START_ID							(0x3000)
+#endif
 
 
  /* 单元类型（有线单元、WIFI单元） */
@@ -168,8 +181,12 @@ typedef struct {
 	/* 电量、信号值(wifi) */
 	uint8_t soc;
 	uint8_t rssi;
+
+	/* 单元配置（需要连接到Database 用于保存） */
+	UnitCfg_S *config;
 }UnitInfo_S;
 #pragma pack()
+
 
 
  /**
@@ -177,43 +194,30 @@ typedef struct {
  *
  **/
  typedef struct {
-	 /* 系统模式 */
-	 SysMode_EN sysMode;
- 
-	 /* 话筒模式 */
-	 MicMode_EN micMode;
-	 
-	/* 投票模式 */
-	VoteMode_EN voteMode;
- 
-	 /* 有线单元当前ID(编ID) */
-	 uint16_t wiredCurEditID;
 
-	  /* WIFI单元当前ID(编ID) */
-	 uint16_t wifiCurEditID;
- 
-	 /* 签到总人数 */
-	 uint16_t totalSignNum;
+	/* 系统状态 */
+	 struct {
+		/* 系统模式 */
+		 SysMode_EN sysMode;
+		 
+		/* 投票模式 */
+		VoteMode_EN voteMode;
 	 
-	 /* 当前签到人数 */
-	 uint16_t currentSignNum;
- 
-	 /* 允许开话筒数 - 有线单元 */
-	 uint8_t wiredAllowOpen;
-	 
-	 /* 可等待话筒数 - 有线单元
-	 (可等待数量和允许开话筒数量相等) */
-	 uint8_t wiredAllowWait;
- 
-	 /* 允许开话筒数 - 有线单元 */
-	 uint8_t wifiAllowOpen;
-	 
-	 /* 可等待话筒数 - 有线单元
-	 (可等待数量和允许开话筒数量相等) */
-	 uint8_t wifiAllowWait;
+		 /* 有线单元当前ID(编ID) */
+		 uint16_t wiredCurEditID;
 
-	 /* 系统语言 */
-	 Language_EN language;
+		  /* WIFI单元当前ID(编ID) */
+		 uint16_t wifiCurEditID;
+	 
+		 /* 签到总人数 */
+		 uint16_t totalSignNum;
+		 
+		 /* 当前签到人数 */
+		 uint16_t currentSignNum;
+	 }state;
+ 
+	/* 系统配置（需要连接到Database 用于保存） */
+	SysCfg_S *config;
  
  }ConfSysInfo_S;
 
@@ -228,7 +232,7 @@ typedef struct {
 	uint16_t (*getCurrentEditId)(void);
 	UnitInfo_S *(*wiredUnitInfo)(void);
 	UnitInfo_S *(*wifiUnitInfo)(void);
-	ConfSysInfo_S (*getConfSysInfo)(void);
+	ConfSysInfo_S *(*getConfSysInfo)(void);
 }Conference_S;
 
 /*******************************************************************************

@@ -60,7 +60,7 @@
 /* 轮询时间 */
 #define POLLING_TIME_MS										(100)
 /* 两台单元间轮询间隔 */
-#define POLLING_TIME_INTERVAL_MS							(1)
+#define POLLING_TIME_INTERVAL_MS							(5)
 
 /* 轮询无应答判断为离线次数 */
 #if 0   
@@ -228,13 +228,13 @@ static void WiredUnit_LaunchTask(void *pvParameters) {
 static void WiredUnit_PollingTimer(TimerHandle_t xTimer) {
     uint16_t id;
     ConfProtocol_S prot;
-	ConfSysInfo_S info;
+	ConfSysInfo_S *info;
 
     memset(&prot,0,sizeof(ConfProtocol_S));
 
 	info = Conference.getConfSysInfo();
 
-	switch(info.sysMode){
+	switch(info->state.sysMode){
 		/* 会议模式 */
 		case kMode_Conference:{
 			/* 轮询从1号ID开始 */
@@ -275,7 +275,7 @@ static void WiredUnit_PollingTimer(TimerHandle_t xTimer) {
 			/* 轮询从1号ID开始 */
 			for(id = 1; id<WIRED_UNIT_MAX_ONLINE_NUM; id++) {
 				if(unitInfo[id].online) {
-					Protocol.conference(&prot,id,POLLING_MSG,VOTE_POLLING,VotePollingCode[info.voteMode],0,0);
+					Protocol.conference(&prot,id,POLLING_MSG,VOTE_POLLING,VotePollingCode[info->state.voteMode],0,0);
 					WiredUnit_NetDataTransmit(&prot);
 					DELAY(POLLING_TIME_INTERVAL_MS);
 				}
@@ -313,6 +313,7 @@ static void WiredUnit_NetDataProcessTask(void *pvParameters) {
     Network_DataBuf_S *taskBuf;
     Network_Mac_S *unitSrcMac;
     NetData_S *netData;
+	ConfSysInfo_S *info;
 
     ConfProtocol_S prot;
 
@@ -323,6 +324,10 @@ static void WiredUnit_NetDataProcessTask(void *pvParameters) {
     debug("Wired unit data process task start!!\r\n");
 	
 	xTimerStart(pollingTimer,0);
+
+	/* 广播模式及数量 */
+	info = Conference.getConfSysInfo();
+	WiredUnit_NetDataTransmit(Protocol.conference(&prot,MODE_BROADCAST_ID,STATE_MSG,info->config->micMode,info->config->wiredAllowOpen,null,null));
     while(1) {
 
         Network.receive(netTaskHandler,taskBuf,MAX_NUM);
@@ -412,9 +417,9 @@ static void WiredUnit_AccessSystem(uint16_t id,Network_Mac_S *unitSrcMac,UnitAtt
 
     /* 设备ID已在线，且MAC与申请进系统MAC不同 */
     if(devInfo->online && !NETWORK_COMPARISON_MAC((&devInfo->mac),unitSrcMac)) {
-        Protocol.conference(&prot,id, BASIC_MSG, CONFERENCE_MODE, ID_DUPICATE,null,null);
-
-        WiredUnit_NetDataTransmit(&prot);
+        Protocol.conference(&prot,WHOLE_BROADCAST_ID, BASIC_MSG, CONFERENCE_MODE, ID_DUPICATE,id,null);
+//
+//        WiredUnit_NetDataTransmit(&prot);
         WiredUnit_NotifyConference(&prot);
     }
     /* 设备ID不在线,或已在线但MAC相同 */

@@ -129,7 +129,7 @@ void HAL_RtcSetRstFlag(HAL_RtcType_EN type)
 
     rtc = Rtc_drivers[type];
     sta = rtc->getSta_1(rtc->base,rtc->addr);
-    rtc->setSta_1(rtc->base,rtc->addr,(sta | 0x08));
+    rtc->setSta_1(rtc->base,rtc->addr,(sta & (~0x08)));
 }
 
 

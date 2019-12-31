@@ -7,17 +7,27 @@
 /*******************************************************************************
  * Variables
  ******************************************************************************/
-#ifndef AUD_CODEC_NAU88C22_ENABLE
-#define AUD_CODEC_NAU88C22_ENABLE							ENABLE
+#ifndef AUD_CODEC_NAU88C22_W_ENABLE
+#define AUD_CODEC_NAU88C22_W_ENABLE							ENABLE
 #endif
+
+#ifndef AUD_CODEC_NAU88C22_D_ENABLE
+#define AUD_CODEC_NAU88C22_D_ENABLE							ENABLE
+#endif
+
 	
-#define AUD_CODEC_DRIVERS_TOTAL_NUM							(AUD_CODEC_NAU88C22_ENABLE)
+#define AUD_CODEC_DRIVERS_TOTAL_NUM							(AUD_CODEC_NAU88C22_W_ENABLE + AUD_CODEC_NAU88C22_D_ENABLE)
 	
 	
 typedef enum {
-#if	AUD_CODEC_NAU88C22_ENABLE
-		tNau88c22,
+#if	AUD_CODEC_NAU88C22_W_ENABLE
+		tNau88c22_W,
 #endif
+
+#if	AUD_CODEC_NAU88C22_D_ENABLE
+		tNau88c22_D,
+#endif
+
 } HAL_AudCodecType_EN;
 
 

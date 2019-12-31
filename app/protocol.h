@@ -16,6 +16,7 @@
 #define TRANS_BROADCAST_ID							(0xFFF3)			//仅对议员机广播消息
 #define MODE_BROADCAST_ID							(0xFFE1)			//广播当前主机话筒模式（有线单元）
 #define NUM_BROADCAST_ID							(0xFFE2)			//广播会场总数量、当前开话筒数量
+#define NOW_DATE_TIME_ID							(0xFFEC)			//PC广播下发时间					
 #define WIFI_MODE_BROADCAST_ID						(0xFFEA)			//广播当前主机话筒模式（WIFI单元）
 #define APPLY_OPEN_MIC_ID							(0xFFC1)			//向主席机广播当前申请开话筒ID
 #define REVOKE_APPLY_ID								(0xFFC2)			//向主席机广播当前撤销申请话筒ID
@@ -45,6 +46,8 @@
 #define NAMEPLATE_NAME								(0x9C)				//PC下发电子铭牌内容（姓名）
 #define NAMEPLATE_UPDATE							(0x9D)				//PC单播更新电子铭牌（旧电子铭牌协议，用于兼容）
 #define HOST_REPLY_PC								(0x9E)				//主机回复PC发送成功
+#define AUDIO_MATRIX								(0xB0)				//音频矩阵参数配置
+#define AUDIO_MATRIX_INQUIRE						(0xB1)              //音频矩阵参数查询
 
 
 /************ 参数ph(para high) ************/
@@ -53,6 +56,8 @@
 #define SIGN_MODE									(0x01)
 #define VOTE_MODE									(0x02)
 #define EDIT_ID_MODE								(0x03)
+#define UNIT_CTRL									(0x04)
+
 
 /* 前置字段 	PC_MSG */
 #define HEARTBEAT									(0x00)
@@ -66,6 +71,10 @@
 #define CFG_MASK									(0x08)
 #define CFG_GW										(0x09)
 #define QUERY_HOST									(0x0F)
+#define CAMERA_POSITION								(0x10)
+#define CAMERA_CONTROL								(0x14)
+#define UNIT_LOGOUT									(0x20)
+#define UNIT_LOGIN									(0x21)
 #define CUSTOM_VOTE_ITEM							(0x24)
 #define PC_EDIT_ID									(0x2F)
 #define SCAN_ONLINE_UNIT							(0x30)
@@ -78,6 +87,12 @@
 #define SIGN_POLLING								(0x06)
 #define VOTE_POLLING								(0x07)
 #define EDIT_ID_POLLING								(0x08)
+
+/* 前置字段 AUDIO_MATRIX 或 AUDIO_MATRIX_INQUIRE */
+#define DSP_MODE									(0x00)
+#define DSP_UNIT_OUT_CFG							(0x01)
+#define DSP_NOR_OUT_CFG								(0x02)
+#define DSP_CHANNEL_OUT_CFG							(0x03)
 
 
 
@@ -431,4 +446,6 @@ typedef struct {
 
 extern Protocol_S Protocol;
 #endif
+
+
 

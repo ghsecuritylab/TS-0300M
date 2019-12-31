@@ -45,10 +45,10 @@
 #define null 											0
 #endif
 
-/* reserved(开发用，表示未确定参数) */
-#ifndef reserved
-#define reserved 										null
-#endif
+///* reserved(开发用，表示未确定参数) */
+//#ifndef reserved
+//#define reserved 										null
+//#endif
 
 
 /* 错误条件判断 */

@@ -64,12 +64,6 @@
 #define ENET0_TYPE							eth0
 #define ENET1_TYPE							eth1
 
-/* Íø¿¨ÎïÀíµØÖ· */
-//#define LAN8720A_PHY_ADDR					(0)
-//#define RTL8306M_PHY_ADDR					(6)
-//
-//#define ETH0_PHY_ADDRESS 					LAN8720A_PHY_ADDR
-//#define ETH1_PHY_ADDRESS 					RTL8306M_PHY_ADDR
 
 /* ÍøÂçÇı¶¯ÀàĞÍ */
 #define ENET0_DRIVER						tLan8720a
@@ -781,6 +775,8 @@ static void Network_TaskTransmit(Network_TaskHandler_S *handler,Network_DataBuf_
 			/* ·â×°ÍøÂçÄä*/
 			frame->type = lwip_htons(0x0800);
 			frame->ver_len = 0x45;
+			/* QOS */
+			frame->servField = 0xB4; 
 			frame->totalLen = lwip_htons(buf->len+8+20);
 			frame->id = lwip_htons(frameId++);
 			frame->ttl = 128;

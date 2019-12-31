@@ -169,29 +169,6 @@ status_t I2C_Read(LPI2C_Type *base,uint16_t slaveAddr,uint32_t subAdd,uint8_t su
 		return status;
 	}
 
-//
-//
-//
-//status_t LPSPI_MasterWriteSingleByte(LPSPI_Type *base,uint32_t pcs,uint8_t data)
-//{
-//	status_t status;
-//	lpspi_transfer_t xfer = {0};
-//
-//	ERR_CHECK((pcs == kLPSPI_MasterPcs0) || (pcs == kLPSPI_MasterPcs1) ||  \
-//		      (pcs == kLPSPI_MasterPcs2) || (pcs == kLPSPI_MasterPcs3), return kStatus_LPSPI_Error);
-//	
-//	xfer.txData = &data;
-//	xfer.rxData = NULL;
-//	xfer.dataSize = 1;
-//	xfer.configFlags = pcs | kLPSPI_MasterByteSwap | kLPSPI_MasterPcsContinuous;
-//	
-//	status = LPSPI_MasterTransferBlocking(base,&xfer);
-//
-//	return status;
-//}
-//
-
-
 
 
 
