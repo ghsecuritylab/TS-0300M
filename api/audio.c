@@ -163,8 +163,8 @@ static void Audio_Launch(void)
 static void Audio_LaunchTask(void *pvParameters)
 {
     /* 初始化GPIO */
-    SwitchCtrlIo = HAL_GpioInit(RELAY_CTRL_GPIO, RELAY_CTRL_PIN, kGPIO_DigitalOutput, null, null);
-    UsbPowerCtrlIo = HAL_GpioInit(USB_POWER_CTRL_GPIO, USB_POWER_CTRL_PIN, kGPIO_DigitalOutput, null, null);
+    SwitchCtrlIo = HAL_GpioInit(RELAY_CTRL_GPIO, RELAY_CTRL_PIN, kGPIO_DigitalOutput, null, (gpio_interrupt_mode_t)null);
+    UsbPowerCtrlIo = HAL_GpioInit(USB_POWER_CTRL_GPIO, USB_POWER_CTRL_PIN, kGPIO_DigitalOutput, null, (gpio_interrupt_mode_t)null);
 
     /* 默认连接 */
     USB_CONNET_TO(MCU);
@@ -472,7 +472,8 @@ static void Audio_PlayStop(void)
 
 static uint8_t Audio_WaitAckByTime(uint8_t *data,uint32_t time)
 {
-    uint8_t i,count = 0;
+//    uint8_t i;
+	uint8_t count = 0;
     ERR_CHECK(data != 0, return 0);
 
 //    Wt2000_AckRecvEnable(true);
@@ -569,8 +570,8 @@ static void Audio_RunningTimer(TimerHandle_t xTimer)
 	Wt2000_QueryState(kType_WtCmd_State);
 	Audio_WaitAck(ack);
 	Wt2000_AckRecvEnable(false);
-	if(ack[0] == kType_WtCmd_State){
-        playSta = ack[1];
+	if(ack[0] == (uint8_t)kType_WtCmd_State){
+        playSta = (WtPlaySta_EN)ack[1];
 	}	
 
     switch(audState->state) {

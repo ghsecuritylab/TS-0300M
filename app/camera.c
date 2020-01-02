@@ -26,6 +26,7 @@
 
 /* API */
 #include "data_queue.h"
+#include "ram.h"
 
 /* APP */
 #include "external_ctrl.h"
@@ -37,7 +38,7 @@
  ******************************************************************************/
 /* 协议使能 */
 #define PROTOCOL_VISCA_ENABLE					(ENABLE)
-#define PROTOCOL_Pelcd_D_ENABLE					(DISABLE)
+#define PROTOCOL_PELCD_D_ENABLE					(DISABLE)
  
  
 #define CAM_485_TRANSMIT						(0x01)
@@ -128,8 +129,13 @@ static void Camera_CmdSend(uint8_t *cmd,uint8_t len){
 * @return
 */
 static void Camera_SetPosition(uint8_t ch, uint8_t pos){
+#if PROTOCOL_VISCA_ENABLE
 	const uint8_t Visca[7] = {0x00,0x01,0x04,0x3F,0x02,0x00,0xFF};
+#endif
+	
+#if PROTOCOL_PELCD_D_ENABLE
 	const uint8_t Pelcd_D[7] = {0xFF,0x01,0x00,0x07,0x00,0x00,0x08};
+#endif
 	const uint8_t ChannelSwitch[] = {0x00,0x01,0xFF,0x10,0x00,0xFB,0x00,0x01,0x0C};
 	
 	uint8_t *cmd;
@@ -155,7 +161,7 @@ static void Camera_SetPosition(uint8_t ch, uint8_t pos){
 	Camera_CmdSend(cmd,sizeof(Visca));
 #endif
 	
-#if PROTOCOL_Pelcd_D_ENABLE
+#if PROTOCOL_PELCD_D_ENABLE
 	/* 发送Pelcd_D协议 */
 	memcpy(cmd,Pelcd_D,sizeof(Pelcd_D));
 	cmd[1] = ch;

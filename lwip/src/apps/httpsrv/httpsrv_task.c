@@ -408,6 +408,10 @@ void httpsrv_http_process(void *server_ptr, void *session_ptr)
         session->state = HTTPSRV_SES_CLOSE;
     }
 
+	/* Web页面不断切换会导致HTTP线程和TCP主线程卡死，原因未找到，可能与线程优先级有关
+	 （但目前TCP主线程比HTTP跟TCP任务线程优先级都高）但是在这里加一个延时可以避免bug出现 */
+	vTaskDelay(1);
+	
     switch (session->state)
     {
         case HTTPSRV_SES_WAIT_REQ:

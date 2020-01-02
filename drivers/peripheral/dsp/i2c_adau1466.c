@@ -4,15 +4,15 @@
 *  Author:         ≥¬‘Û∑º 
 *  description :   ADAU1466≥ı ºªØ£¨“Ù∆µæÿ’ÛAPI
 */
-#define ALL_DSP_FUNCTION_ENABLE   1
+#define ALL_DSP_FUNCTION_ENABLE   0
 
 #include "board.h"
 #include "pin_mux.h"
 #include "fsl_common.h"
-#include "fsl_debug_console.h"
 #include "fsl_lpi2c.h"
 #include "i2c_adau1466.h"
 #include "adau1466_reg.h"
+#include "debug.h"
 
 #if ALL_DSP_FUNCTION_ENABLE
 #include "adau1466_1_IC_1.h"
@@ -193,7 +193,7 @@ static status_t ADAU1466_1_Init()
 	status=SIGMA_WRITE_REGISTER_BLOCK( DSP1_DEVICE_ADDR_IC_1, DSP1_REG_HIBERNATE_IC_1_ADDR, DSP1_REG_HIBERNATE_IC_1_BYTE, DSP1_R66_HIBERNATE_IC_1_Default );
 	
 	SIGMA_READ_REGISTER_BLOCK(DSP1_DEVICE_ADDR_IC_1, DSP1_REG_SERIAL_BYTE_6_0_IC_1_ADDR,2,data_buff); // ≤‚ ‘∂¡”√
-//	PRINTF("data_buff[0]=%d,data_buff[1]=%d,data_buff[2]=%d,data_buff[3]=%d\r\n",data_buff[0],data_buff[1],data_buff[2],data_buff[3]);
+//	debug("data_buff[0]=%d,data_buff[1]=%d,data_buff[2]=%d,data_buff[3]=%d\r\n",data_buff[0],data_buff[1],data_buff[2],data_buff[3]);
 #endif
 	return status;	
 }
@@ -279,7 +279,7 @@ static status_t ADAU1466_2_Init()
 	status=SIGMA_WRITE_REGISTER_BLOCK( DSP2_DEVICE_ADDR_IC_1, DSP2_REG_HIBERNATE_IC_1_ADDR, DSP2_REG_HIBERNATE_IC_1_BYTE, DSP2_R60_HIBERNATE_IC_1_Default );
 	//return kStatus_Success ;
 	SIGMA_READ_REGISTER_BLOCK(DSP2_DEVICE_ADDR_IC_1, DSP2_REG_SERIAL_BYTE_6_0_IC_1_ADDR,2,data_buff); // ≤‚ ‘∂¡”√
-//	PRINTF("data_buff[0]=%d,data_buff[1]=%d,data_buff[2]=%d,data_buff[3]=%d\r\n",data_buff[0],data_buff[1],data_buff[2],data_buff[3]);
+//	debug("data_buff[0]=%d,data_buff[1]=%d,data_buff[2]=%d,data_buff[3]=%d\r\n",data_buff[0],data_buff[1],data_buff[2],data_buff[3]);
 #endif	
 	return status;	
 }
@@ -316,18 +316,18 @@ void I2C_ADAU1466_Init()
 //    LPI2C_MasterInit(I2C_ADAU1466_BASE, &masterConfig, I2C_ADAU1466_CLOCK_FREQ);
 			
 		status_t status =ADAU1466_1_Init(); 
-//		PRINTF("\r\n status is = %d ... \r\n",status);
+//		debug("\r\n status is = %d ... \r\n",status);
 		if(status)
-			PRINTF("DSP_1 init err , sta = %d ... \r\n",status);
+			debug("DSP_1 init err , sta = %d ... \r\n",status);
 //		else
-//			PRINTF("\r\n I2C_ADAU1466_1 is not ok ... \r\n");
+//			debug("\r\n I2C_ADAU1466_1 is not ok ... \r\n");
 		
 		status =ADAU1466_2_Init(); 
-//		PRINTF("\r\n status is = %d ... \r\n",status);
+//		debug("\r\n status is = %d ... \r\n",status);
 		if(status)
-			PRINTF("DSP_1 init err , sta = %d ... \r\n",status);
+			debug("DSP_1 init err , sta = %d ... \r\n",status);
 //		else
-//			PRINTF("\r\n I2C_ADAU1466_2 is not ok ... \r\n");
+//			debug("\r\n I2C_ADAU1466_2 is not ok ... \r\n");
 }
 
 //===========================API===============================//
@@ -3760,9 +3760,9 @@ void ADAU1466_Test()
 {
 	uint8_t i;
 	//=====================DSP1==========================//
-//	PRINTF("\r\n start test reg write\r\n");
+//	debug("\r\n start test reg write\r\n");
 //	ADAU1466_SetMode(DSP_MODE_PARTITION);
-//	PRINTF("\r\n end test reg write\r\n");
+//	debug("\r\n end test reg write\r\n");
 //	g_unDspInfo.mode=DSP_MODE_PARTITION;
 	ADAU1466_ChannelInputSource(DSP_OUTPUT_CH1,DSP_OUTPUT_LINE_IN2,DSP_VOLUME_N15_DB);
 	for(i=0;i<8;i++)

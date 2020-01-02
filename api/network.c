@@ -101,11 +101,11 @@
 
 /* 网络任务线程堆栈大小、优先级 */
 #define NETWORK_TASK_STACK					1024
-#define NETWORK_TASK_PRIORITY				14
+#define NETWORK_TASK_PRIORITY				(TCPIP_THREAD_PRIO - 1)
 
-/* HTTP任务优先级（初始化中会规定HTTP优先线
-不能大于TCP任务优先级，因此这里直接赋值等于TCP优先级） */
-#define HTTP_TASK_PRIORITY					TCPIP_THREAD_PRIO
+/* HTTP任务优先级 */
+#define HTTP_TASK_PRIORITY					(TCPIP_THREAD_PRIO - 1)
+
 
 /* 网络任务收发通讯队列长度 */
 #define NETWORK_TASK_QUEUE_LEN				30
@@ -243,7 +243,7 @@ Network_S Network = {
 	.transmit = Network_TaskTransmit,
 };
 
-const static uint8_t EthResetIO[NETWORK_ETH_NUM] = {2,3};
+//const static uint8_t EthResetIO[NETWORK_ETH_NUM] = {2,3};
 
 static ethernetif_config_t EnetConfig[NETWORK_ETH_NUM] = {
 	/* ethernet netif config */
@@ -297,22 +297,11 @@ static void Network_Init(void)
 	
 	IOMUXC_EnableMode(IOMUXC_GPR, kIOMUXC_GPR_ENET1TxClkOutputDir, true);
 	IOMUXC_EnableMode(IOMUXC_GPR, kIOMUXC_GPR_ENET2TxClkOutputDir, true);
-
-	/* 代码运行在飞1061开发板 */
-#if (DEVICE_MODEL == OK1061_S)
-	//GPIO1_IO02 == M11,GPIO1_IO03 == G11
-	GPIO_PinInit(GPIO1, 2, &gpio_config);
-	GPIO_PinInit(GPIO1, 3, &gpio_config);	
-    GPIO_PinInit(GPIO1, 10, &gpio_config);
-    /* pull up the ENET_INT before RESET. */
-    GPIO_WritePinOutput(GPIO1, 10, 1);
-
-#elif (DEVICE_MODEL == TS_0300M)	
+	
 	GPIO_PinInit(GPIO2, 28, &gpio_config);
 	GPIO_WritePinOutput(GPIO2, 28, 0);
 	GPIO_PinInit(GPIO1, 11, &gpio_config);
 	GPIO_WritePinOutput(GPIO1, 11, 0);
-#endif
 	
 	DELAY(100);
 	tcpip_init(NULL, NULL); 
@@ -570,7 +559,7 @@ static Network_TaskHandler_S *Network_CreatNetworkTask(Network_EthIndex_EN index
 	switch(type){
 		/* Ethernet任务 */
 		case tEthernet:{
-			Network_EthernetTaskPara_S *ethernetTaskPara = para;
+//			Network_EthernetTaskPara_S *ethernetTaskPara = para;
 			if(ethHandler->type != NETWORK_TYPE_ETHERNET || ethHandler->taskHandler[type] != null){
 				goto creat_net_task_err;
 			}
@@ -593,7 +582,7 @@ static Network_TaskHandler_S *Network_CreatNetworkTask(Network_EthIndex_EN index
 		
 		/* Tpc任务 */
 		case tTcp:{
-			Network_TcpTaskPara_S *tcpTaskPara = para;
+//			Network_TcpTaskPara_S *tcpTaskPara = para;
 			if(ethHandler->type != NETWORK_TYPE_TCPIP || ethHandler->taskHandler[type] != null){
 				goto creat_net_task_err;
 			}

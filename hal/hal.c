@@ -499,6 +499,17 @@ static void HAL_UartConfig(void)
 	LPUART_Type *base;
 	lpuart_config_t lpuartConfig;
 	uint32_t srcClock_Hz = BOARD_DebugConsoleSrcFreq();
+	
+#if defined(LOG_SERIAL_PORT) && defined(LOG_BAUDRATE)
+	base = LOG_SERIAL_PORT;
+
+	LPUART_GetDefaultConfig(&lpuartConfig);
+	lpuartConfig.baudRate_Bps = LOG_BAUDRATE;
+    lpuartConfig.enableRx = true;
+    lpuartConfig.enableTx = true;
+
+	LPUART_Init(base, &lpuartConfig, srcClock_Hz);
+#endif
 
 #if defined(UART6_ENABLE) && UART6_ENABLE && defined(UART6_USE_IN_DRIVER)
 	base = LPUART6;
@@ -523,7 +534,7 @@ void HAL_Init(void){
     BOARD_ConfigMPU();
     BOARD_InitPins();
     BOARD_BootClockRUN();
-    BOARD_InitDebugConsole();
+//    BOARD_InitDebugConsole();
     BOARD_InitModuleClock();
 
 	HAL_PinConfig();

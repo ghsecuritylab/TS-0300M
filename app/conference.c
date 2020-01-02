@@ -28,7 +28,7 @@
 #include "timers.h"
 
 /* API */
-#include "app.h"
+#include "global_config.h"
 #include "data_queue.h"
 #include "ram.h"
 #include "usb_disk.h"
@@ -47,7 +47,7 @@
  ******************************************************************************/
 /* 任务堆栈大小及优先级 */
 #define CONFERENCE_TASK_STACK_SIZE						(2048)
-#define CONFERENCE_TASK_PRIORITY						(17)
+#define CONFERENCE_TASK_PRIORITY						(configMAX_PRIORITIES - 1)
 
 #define NOTICE_QUEUE_LENGTH								(128)
 #define NOTICE_QUEUE_SIZE								(sizeof(void *))
@@ -90,7 +90,6 @@
 /* 定时任务计时器运行间隔(ms) */
 #define TIMING_TASK_INTERVAL						(1000)
 
-/*************************************  Instructions  *******************************************/
 
 
 typedef enum {
@@ -422,14 +421,13 @@ static void Conference_TimingTask(TimerHandle_t xTimer)
     HAL_SetGpioLevel(RunSignal, runSignal);
 
     /* 检测外部控制连接状态,并将屏幕切换到相应状态 */
-	if(ExternalCtrl.connectSta(kType_NotiSrc_PC) || ExternalCtrl.connectSta(kType_NotiSrc_Web)){
-		if(ScreenCurrentPage != PC_Connect_Page)
-			Conference_ScreenPageSwitch(PC_Connect_Page);
-	}
-	else{
-		if(ScreenCurrentPage == PC_Connect_Page)
-			Conference_ScreenPageSwitch(Main_Munu_Page);
-	}
+    if(ExternalCtrl.connectSta(kType_NotiSrc_PC) || ExternalCtrl.connectSta(kType_NotiSrc_Web)) {
+        if(ScreenCurrentPage != PC_Connect_Page)
+            Conference_ScreenPageSwitch(PC_Connect_Page);
+    } else {
+        if(ScreenCurrentPage == PC_Connect_Page)
+            Conference_ScreenPageSwitch(Main_Munu_Page);
+    }
 
 
 #ifdef	CONFIRM_UNIT_NUM
@@ -1072,7 +1070,6 @@ unitVoted:
             memcpy(data,SysInfo.config->mask,4);
             ExternalCtrl.transWithExData(notify->nSrc,Protocol.conference(&confProt,WHOLE_BROADCAST_ID,PC_MSG,CFG_MASK,0x04,data[0],data[1] << 8 | data[2]),1,&data[3]);
 
-//			SysInfo.config->
         }
         break;
 
@@ -1150,6 +1147,8 @@ unitVoted:
         break;
         /* 扫描在线单元ID 0x30 */
         case SCAN_ONLINE_UNIT: {
+			uint8_t num = 0, *micArray;
+		
             /* 上传在线有线单元 */
             for(id = 1; id <= WIRED_UNIT_MAX_ONLINE_NUM; id++) {
                 if(UnitInfo.wired[id].online) {
@@ -1167,6 +1166,8 @@ unitVoted:
             }
             ExternalCtrl.transmit(notify->nSrc,Protocol.conference(&confProt,WHOLE_BROADCAST_ID,PC_MSG,SCAN_ONLINE_UNIT,SCAN_UNIT_END,tWifi, \
                                   (OnlineNum.wifiChm + OnlineNum.wifiRps)));
+
+			
         }
         break;
 
@@ -1438,7 +1439,7 @@ unitVoted:
                 for(i = 1; i <= 6; i++) {
                     /* 回复6个输出通道音量 */
                     ExternalCtrl.transmit(notify->nSrc,Protocol.conference(&confProt,WHOLE_BROADCAST_ID,AUDIO_MATRIX,DSP_NOR_OUT_CFG,  \
-                                          i, 0x01, SysInfo.config->dsp[i + DSP_OUTPUT_CH16].vol));
+                                          i, 0x01, SysInfo.config->dsp[i + DSP_OUTPUT_CH16].vol << 8 | 0x00));
                 }
             }
             break;
@@ -2783,8 +2784,8 @@ static void Conference_MicControl(uint16_t id, UnitType_EN type, uint32_t cmd)
                     if(index != 0) {
                         DataQueue.deleted(waitQueue,index);
                         Conference_MicCtrlInstruction(id,type,(UnitAttr_EN)null,tDisWait,null);
+						break;
                     }
-                    break;
                 }
 
                 /* 主席+代表开话筒数量未超过允许开话筒数 */

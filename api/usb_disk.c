@@ -183,7 +183,7 @@ static void USB_closeDataStream(uint8_t index);
 /* 文件系统相关变量 */
 static FATFS 	Fatfs;
 static size_t 	FreeSize,TotalSize;
-static BYTE 	FsType;
+//static BYTE 	FsType;
 static FILINFO 	FileList[USB_FILEINFO_STACK_SIZE];
 static uint32_t FileListSize;
 
@@ -731,7 +731,7 @@ static void USB_GetUsbDiskInfo()
     }
     FreeSize = (freeClusterNumber * (fs->csize) / 2);
     TotalSize = ((fs->n_fatent - 2) * (fs->csize) / 2);
-    FsType = fs->fs_type;
+//    FsType = fs->fs_type;
 
 //    debug("USB Disk \'%s\' FAT type = %s\r\n",USBDISK_ROOT,(fs->fs_type == FS_FAT12 ? "FAT12" : (fs->fs_type == FS_FAT16 ? "FAT16" : "FAT32")));
 //    debug("The free size: %dKB, the total size:%dKB\r\n",FreeSize,TotalSize);

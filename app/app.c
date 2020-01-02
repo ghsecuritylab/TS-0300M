@@ -15,7 +15,6 @@
  * includes
  ******************************************************************************/
 /* APP */ 
-#include "app.h"
 #include "wired_unit.h"
 #include "conference.h"
 #include "external_ctrl.h"
@@ -23,10 +22,8 @@
 #include "screen.h"
 #include "camera.h"
 
-/* OS */
-#include "FreeRTOS.h"
-#include "task.h"
-#include "timers.h"
+/* GLOBAL */
+#include "global_config.h"
 
 /* API */
 #include "network.h"
@@ -36,21 +33,18 @@
 #include "database.h"
 #include "dsp.h"
 
+/* OS */
+#include "FreeRTOS.h"
+#include "task.h"
+
 /* HAL */
 #include "hal.h"
-#include "hal_gpio.h"
-#include "hal_rtc.h"
-#include "hal_spi_flash.h"
-
-/* LIB */
-#include "stdio.h"
 
 /* SDK */
 #include "board.h"
 #include "pin_mux.h"
 #include "fsl_iomuxc.h"
 
-/* DRIVER */
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
@@ -87,7 +81,7 @@ int main(void)
 
 	/* 开启任务线程 */
     if (xTaskCreate(App_LauncherTask, "Launcher", LAUNCHER_STACK_SIZE, null, LAUNCHER_PRIORITY, NULL) != pdPASS) {
-        debug("create host task error\r\n");
+        printf("create Launcher task error\r\n");
     }
 	
     vTaskStartScheduler();
@@ -137,7 +131,6 @@ static void App_LauncherTask(void *pvParameters)
 
 	Screen.launch();
 
-//	debug_init();
     vTaskDelete(null);
     while(1);
 }

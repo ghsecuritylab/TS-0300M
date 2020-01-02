@@ -15,7 +15,7 @@
  ******************************************************************************/
 #include "fsl_dmamux.h"
 #include "fsl_sai_edma.h"
-#include "fsl_debug_console.h"
+//#include "fsl_debug_console.h"
 //#include "pin_mux.h"
 #include "fsl_iomuxc.h"
 #include "clock_config.h"

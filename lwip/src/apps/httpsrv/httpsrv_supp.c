@@ -543,7 +543,6 @@ static int32_t httpsrv_set_params(HTTPSRV_STRUCT *server, HTTPSRV_PARAM_STRUCT *
         }
 #endif
         /* Server must run with lower priority than TCP/IP task. */
-		/* 很奇怪这里为什么会判断传入参数？？ 不是应该判断server->params.task_prio吗？？ */
         if (params->task_prio > TCPIP_THREAD_PRIO)
         {
             params->task_prio = TCPIP_THREAD_PRIO;

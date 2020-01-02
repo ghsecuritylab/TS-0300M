@@ -6,37 +6,87 @@
 #include <string.h>
 #include <stdint.h>
 
-/*******************************************************************************
+/***********************************************************************************************
+ * 									设备版本相关信息
+ **********************************************************************************************/
+/* 主机型号 */
+#define TS_0300M										(0)
+
+
+/* 本机型号 */
+#define DEVICE_MODEL									TS_0300M
+
+/*  软件版本  */
+#define APP_VERSION										"V1.0"
+
+
+/* 打印设备信息 */
+#define APP_PRINT_DEV_MSG()								APP_PrintDeviceMsg()
+
+/* 软件编译时间 */
+#define APP_BUILD_TIME									APP_BuildTime()
+
+
+extern char *APP_BuildTime(void);
+extern void APP_PrintDeviceMsg(void);
+extern void APP_GetBuildDate(uint16_t *year,uint16_t *mon,uint16_t *day);
+
+/***********************************************************************************************
  * 									全局定义
- ******************************************************************************/
-#define ENABLE												(true)
-#define DISABLE												(false)
+ **********************************************************************************************/
+#define ENABLE															(true)
+#define DISABLE															(false)
 
-/*******************************************************************************
+/* 最大数值 */
+#define MAX_NUM  														(0xffffffffUL)
+
+/* 微秒与系统Tick转换 */
+#define MsToTick(ms) 													((1000L + ((uint32_t)configTICK_RATE_HZ * (uint32_t)(ms - 1U))) / 1000L)
+#define TickToMs(tick) 													((tick)*1000uL / (uint32_t)configTICK_RATE_HZ)
+
+/* OS延时函数 */
+#define DELAY(ms)														vTaskDelay(MsToTick(ms))
+
+/* null值 */
+#ifndef null
+#define null 															(0)
+#endif
+
+/* 错误条件判断 */
+#define ERR_CHECK(condition, implement) 								do { if (!(condition)) {implement;}} while(0)
+/* 带debug错误条件判断 */
+#define ERR_CHECK_DBG(condition, dbg, implement) 						do { if (!(condition)) {debug(dbg); implement;}} while(0)
+/*********************************************************************************************
+ * 							    调试信息相关定义
+ ********************************************************************************************/
+#define LOG_SERIAL_PORT 												(LPUART1)
+#define LOG_BAUDRATE													(115200U)
+
+/*********************************************************************************************
  * 							   网络及相关默认配置
- ******************************************************************************/
-#define EX_CTRL_LOCAL_IP_DEF								{172,16,14,65}
-#define EX_CTRL_GATEWAY_DEF									{172,16,14,254}
-#define EX_CTRL_NETMASK_DEF									{255,255,255,0}
-#define EX_CTRL_PORT_DEF									(50000)
+ ********************************************************************************************/
+#define EX_CTRL_LOCAL_IP_DEF											{172,16,14,65}
+#define EX_CTRL_GATEWAY_DEF												{172,16,14,254}
+#define EX_CTRL_NETMASK_DEF												{255,255,255,0}
+#define EX_CTRL_PORT_DEF												(50000)
 
-/*******************************************************************************
+/*********************************************************************************************
  * 							   主机及会议相关默认配置
- ******************************************************************************/
+ ********************************************************************************************/
 /* 最大有线单元数 */
-#define WIRED_UNIT_MAX_ONLINE_NUM							(4096)
-	
+#define WIRED_UNIT_MAX_ONLINE_NUM										(4096)
+
 /* 最大WIFI单元数 */
-#define WIFI_UNIT_MAX_ONLINE_NUM							(300)
-	
+#define WIFI_UNIT_MAX_ONLINE_NUM										(300)
+
 /* 默认最大允许开话筒数（有线） */
-#define WIRED_UNIT_MAX_ALLWO_OPEN_DEF						(8)
-	
+#define WIRED_UNIT_MAX_ALLWO_OPEN_DEF									(8)
+
 /* 默认最大允许开话筒数（WIFI） */
-#define WIFI_UNIT_MAX_ALLWO_OPEN_DEF						(6)
+#define WIFI_UNIT_MAX_ALLWO_OPEN_DEF									(6)
 
 /* 默认语言 */
-#define CONFERENCE_LANGUAGE_DEF								(Chinese)
+#define CONFERENCE_LANGUAGE_DEF											(Chinese)
 
 
 /*******************************************************************************
@@ -85,7 +135,7 @@
 #define LPSPI_CLOCK_SOURCE_SELECT 						(1U)
 /* Clock divider for master lpspi clock source */
 #define LPSPI_CLOCK_SOURCE_DIVIDER 						(7U)
-	
+
 #define LPSPI_MASTER_CLK_FREQ 							(CLOCK_GetFreq(kCLOCK_Usb1PllPfd0Clk) / (LPSPI_CLOCK_SOURCE_DIVIDER + 1U))
 
 #define LPSPI_USE_IRQ 									DISABLE

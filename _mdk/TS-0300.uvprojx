@@ -341,7 +341,7 @@
 </MiscControls>
               <Define>DEBUG,USB_STACK_FREERTOS,XIP_EXTERNAL_FLASH=1, XIP_BOOT_HEADER_ENABLE=1, CPU_MIMXRT1062DVL6A, FSL_RTOS_FREE_RTOS, ARM_MATH_CM7,FSL_FEATURE_PHYKSZ8081_USE_RMII50M_MODE, USE_RTOS=1,HTTPSRV_CFG_WEBSOCKET_ENABLED=1, FSL_RTOS_FREE_RTOS,SDK_I2C_BASED_COMPONENT_USED=1</Define>
               <Undefine></Undefine>
-              <IncludePath>..\_project;..\xip;..\app;..\api;..\api\utilities;..\api\components;..\api\components\codec;..\api\components\lists;..\api\components\serial_manager;..\api\components\uart;..\amazon-freertos;..\amazon-freertos\lib\include;..\amazon-freertos\lib\include\private;..\amazon-freertos\lib\FreeRTOS\portable\RVDS\ARM_CM4F;..\CMSIS\Include;..\hal;..\drivers\sdk;..\drivers\peripheral;..\drivers\peripheral\net-phy;..\drivers\peripheral\dsp;..\drivers\startup;..\log;..\usb;..\usb\api;..\usb\host;..\usb\host\class;..\usb\include;..\usb\osa;..\usb\phy;..\usb\templates\config;..\fatfs;..\fatfs\fsl_usb_disk;..\lwip;..\lwip\opt;..\lwip\port;..\lwip\src;..\lwip\src\include;..\lwip\src\include\lwip\apps;..\lwip\src\apps\httpsrv;..\lwip\contrib\apps\udpecho</IncludePath>
+              <IncludePath>..\_project;..\xip;..\app;..\global;..\api;..\api\utilities;..\api\components;..\api\components\codec;..\api\components\lists;..\api\components\serial_manager;..\api\components\uart;..\amazon-freertos;..\amazon-freertos\lib\include;..\amazon-freertos\lib\include\private;..\amazon-freertos\lib\FreeRTOS\portable\RVDS\ARM_CM4F;..\CMSIS\Include;..\hal;..\drivers\sdk;..\drivers\peripheral;..\drivers\peripheral\net-phy;..\drivers\peripheral\dsp;..\drivers\startup;..\usb;..\usb\api;..\usb\host;..\usb\host\class;..\usb\include;..\usb\osa;..\usb\phy;..\usb\templates\config;..\fatfs;..\fatfs\fsl_usb_disk;..\lwip;..\lwip\opt;..\lwip\port;..\lwip\src;..\lwip\src\include;..\lwip\src\include\lwip\apps;..\lwip\src\apps\httpsrv;..\lwip\contrib\apps\udpecho</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -389,7 +389,7 @@
       </TargetOption>
       <Groups>
         <Group>
-          <GroupName>application</GroupName>
+          <GroupName>app</GroupName>
           <Files>
             <File>
               <FileName>app.c</FileName>
@@ -400,72 +400,6 @@
               <FileName>app.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\app\app.h</FilePath>
-            </File>
-            <File>
-              <FileName>global_config.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\app\global_config.h</FilePath>
-            </File>
-            <File>
-              <FileName>model_version.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\app\model_version.c</FilePath>
-              <FileOption>
-                <CommonProperty>
-                  <UseCPPCompiler>2</UseCPPCompiler>
-                  <RVCTCodeConst>0</RVCTCodeConst>
-                  <RVCTZI>0</RVCTZI>
-                  <RVCTOtherData>0</RVCTOtherData>
-                  <ModuleSelection>0</ModuleSelection>
-                  <IncludeInBuild>2</IncludeInBuild>
-                  <AlwaysBuild>1</AlwaysBuild>
-                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
-                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
-                  <PublicsOnly>2</PublicsOnly>
-                  <StopOnExitCode>11</StopOnExitCode>
-                  <CustomArgument></CustomArgument>
-                  <IncludeLibraryModules></IncludeLibraryModules>
-                  <ComprImg>1</ComprImg>
-                </CommonProperty>
-                <FileArmAds>
-                  <Cads>
-                    <interw>2</interw>
-                    <Optim>0</Optim>
-                    <oTime>2</oTime>
-                    <SplitLS>2</SplitLS>
-                    <OneElfS>2</OneElfS>
-                    <Strict>2</Strict>
-                    <EnumInt>2</EnumInt>
-                    <PlainCh>2</PlainCh>
-                    <Ropi>2</Ropi>
-                    <Rwpi>2</Rwpi>
-                    <wLevel>0</wLevel>
-                    <uThumb>2</uThumb>
-                    <uSurpInc>2</uSurpInc>
-                    <uC99>2</uC99>
-                    <uGnu>2</uGnu>
-                    <useXO>2</useXO>
-                    <v6Lang>0</v6Lang>
-                    <v6LangP>0</v6LangP>
-                    <vShortEn>2</vShortEn>
-                    <vShortWch>2</vShortWch>
-                    <v6Lto>2</v6Lto>
-                    <v6WtE>2</v6WtE>
-                    <v6Rtti>2</v6Rtti>
-                    <VariousControls>
-                      <MiscControls></MiscControls>
-                      <Define></Define>
-                      <Undefine></Undefine>
-                      <IncludePath></IncludePath>
-                    </VariousControls>
-                  </Cads>
-                </FileArmAds>
-              </FileOption>
-            </File>
-            <File>
-              <FileName>model_version.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\app\model_version.h</FilePath>
             </File>
             <File>
               <FileName>conference.c</FileName>
@@ -546,6 +480,82 @@
               <FileName>camera.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\app\camera.h</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>global</GroupName>
+          <Files>
+            <File>
+              <FileName>global_config.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\global\global_config.h</FilePath>
+            </File>
+            <File>
+              <FileName>debug.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\global\debug.c</FilePath>
+            </File>
+            <File>
+              <FileName>debug.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>..\global\debug.h</FilePath>
+            </File>
+            <File>
+              <FileName>model_version.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\global\model_version.c</FilePath>
+              <FileOption>
+                <CommonProperty>
+                  <UseCPPCompiler>2</UseCPPCompiler>
+                  <RVCTCodeConst>0</RVCTCodeConst>
+                  <RVCTZI>0</RVCTZI>
+                  <RVCTOtherData>0</RVCTOtherData>
+                  <ModuleSelection>0</ModuleSelection>
+                  <IncludeInBuild>2</IncludeInBuild>
+                  <AlwaysBuild>1</AlwaysBuild>
+                  <GenerateAssemblyFile>2</GenerateAssemblyFile>
+                  <AssembleAssemblyFile>2</AssembleAssemblyFile>
+                  <PublicsOnly>2</PublicsOnly>
+                  <StopOnExitCode>11</StopOnExitCode>
+                  <CustomArgument></CustomArgument>
+                  <IncludeLibraryModules></IncludeLibraryModules>
+                  <ComprImg>1</ComprImg>
+                </CommonProperty>
+                <FileArmAds>
+                  <Cads>
+                    <interw>2</interw>
+                    <Optim>0</Optim>
+                    <oTime>2</oTime>
+                    <SplitLS>2</SplitLS>
+                    <OneElfS>2</OneElfS>
+                    <Strict>2</Strict>
+                    <EnumInt>2</EnumInt>
+                    <PlainCh>2</PlainCh>
+                    <Ropi>2</Ropi>
+                    <Rwpi>2</Rwpi>
+                    <wLevel>0</wLevel>
+                    <uThumb>2</uThumb>
+                    <uSurpInc>2</uSurpInc>
+                    <uC99>2</uC99>
+                    <uGnu>2</uGnu>
+                    <useXO>2</useXO>
+                    <v6Lang>0</v6Lang>
+                    <v6LangP>0</v6LangP>
+                    <vShortEn>2</vShortEn>
+                    <vShortWch>2</vShortWch>
+                    <v6Lto>2</v6Lto>
+                    <v6WtE>2</v6WtE>
+                    <v6Rtti>2</v6Rtti>
+                    <VariousControls>
+                      <MiscControls></MiscControls>
+                      <Define></Define>
+                      <Undefine></Undefine>
+                      <IncludePath></IncludePath>
+                    </VariousControls>
+                  </Cads>
+                </FileArmAds>
+              </FileOption>
             </File>
           </Files>
         </Group>
@@ -643,50 +653,15 @@
               <FilePath>..\api\utilities\fsl_assert.c</FilePath>
             </File>
             <File>
-              <FileName>fsl_notifier.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\api\utilities\fsl_notifier.c</FilePath>
-            </File>
-            <File>
-              <FileName>fsl_notifier.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\api\utilities\fsl_notifier.h</FilePath>
-            </File>
-            <File>
-              <FileName>fsl_str.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\api\utilities\fsl_str.c</FilePath>
-            </File>
-            <File>
-              <FileName>fsl_str.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\api\utilities\fsl_str.h</FilePath>
-            </File>
-            <File>
               <FileName>usb_device_config.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\api\utilities\usb_device_config.h</FilePath>
-            </File>
-            <File>
-              <FileName>fsl_debug_console.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\api\utilities\fsl_debug_console.c</FilePath>
             </File>
           </Files>
         </Group>
         <Group>
           <GroupName>api-components</GroupName>
           <Files>
-            <File>
-              <FileName>fsl_codec_common.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\api\components\codec\fsl_codec_common.c</FilePath>
-            </File>
-            <File>
-              <FileName>fsl_codec_common.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\api\components\codec\fsl_codec_common.h</FilePath>
-            </File>
             <File>
               <FileName>generic_list.c</FileName>
               <FileType>1</FileType>
@@ -696,16 +671,6 @@
               <FileName>generic_list.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\api\components\lists\generic_list.h</FilePath>
-            </File>
-            <File>
-              <FileName>serial_manager.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\api\components\serial_manager\serial_manager.c</FilePath>
-            </File>
-            <File>
-              <FileName>serial_port_uart.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\api\components\serial_manager\serial_port_uart.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1236,21 +1201,6 @@
               <FileName>fsl_lpspi.h</FileName>
               <FileType>5</FileType>
               <FilePath>..\drivers\sdk\fsl_lpspi.h</FilePath>
-            </File>
-          </Files>
-        </Group>
-        <Group>
-          <GroupName>log</GroupName>
-          <Files>
-            <File>
-              <FileName>debug.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>..\log\debug.c</FilePath>
-            </File>
-            <File>
-              <FileName>debug.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>..\log\debug.h</FilePath>
             </File>
           </Files>
         </Group>

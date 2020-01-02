@@ -3,7 +3,7 @@
 
 #include "stdint.h"
 #include "ff.h"
-#include "app.h"
+#include "global_config.h"
 #include "data_stream.h"
 /*******************************************************************************
  * Definitions

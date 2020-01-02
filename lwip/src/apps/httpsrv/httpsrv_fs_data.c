@@ -1,7 +1,7 @@
 #include <httpsrv_fs.h>
 
 
-#define  ALL_WEB_PAGE_ENABLE		0
+#define  ALL_WEB_PAGE_ENABLE		1
 
 
 #include "webpage/index.html.h"
@@ -34,7 +34,7 @@ const HTTPSRV_FS_DIR_ENTRY httpsrv_fs_data[] = {
 #if ALL_WEB_PAGE_ENABLE
 	{ "/static/common.js", 0, (unsigned char*)httpsrv_fs_common_js, sizeof(httpsrv_fs_common_js) },
 	{ "/static/favicon.ico", 0, (unsigned char*)httpsrv_fs_favicon_ico, sizeof(httpsrv_fs_favicon_ico) },
-	{ "/static/css/app.af31d10b3a59c336f8c4e9e9aff170d4.css", 0, (unsigned char*)httpsrv_fs_app_css, sizeof(httpsrv_fs_app_css) },
+	{ "/static/css/app.0ea2a0b520c97442e0acf6c8afa5bdd5.css", 0, (unsigned char*)httpsrv_fs_app_css, sizeof(httpsrv_fs_app_css) },
 	{ "/static/fonts/element-icons.6f0a763.ttf", 0, (unsigned char*)httpsrv_fs_element_icons_ttf, sizeof(httpsrv_fs_element_icons_ttf) },
 	{ "/static/img/head_img.a44d6ff.png", 0, (unsigned char*)httpsrv_fs_head_img_png, sizeof(httpsrv_fs_head_img_png) },
 	{ "/static/js/0.js", 0, (unsigned char*)httpsrv_fs_0_js, sizeof(httpsrv_fs_0_js) },

@@ -1,7 +1,7 @@
 #ifndef __NETWORK_H__
 #define __NETWORK_H__
 
-#include "app.h"
+#include "global_config.h"
 #include "httpsrv.h"
 #include "ethernetif.h"
 /*******************************************************************************

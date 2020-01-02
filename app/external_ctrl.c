@@ -31,7 +31,6 @@
 #include "hal_gpio.h"
 
 /* API */
-#include "app.h"
 #include "network.h"
 #include "ram.h"
 
