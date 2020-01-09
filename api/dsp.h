@@ -12,6 +12,7 @@
 
  typedef struct {
 	void (*init)(void);
+	status_t (*setMode)(DspSysMode_E mod);
 	status_t (*inputSrc)(DspOutput_E out,DspInputSrc_E src,DspVolume_E vol);
 	status_t (*inputSrcRst)(void);
 	status_t (*norOutput)(DspOutput_E out,DspOutputType_E src,DspEqPart_E part,uint8_t uchVol);
@@ -20,7 +21,6 @@
 	status_t (*chOutputRst)(void);
 	status_t (*chInputSrc)(DspOutput_E out,DspInputSrc_E src,DspVolume_E vol);
 	status_t (*chInputSrcRst)(void);
-	status_t (*setMode)(DspSysMode_E mod);
 	status_t (*unitCtrl)(DspUintSrc_E src,uint8_t *out,uint8_t *ovol);
  }Dsp_S;
 

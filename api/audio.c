@@ -150,7 +150,7 @@ Audio_S Audio = {
 static void Audio_Launch(void)
 {
     if (xTaskCreate(Audio_LaunchTask, "Audio_LaunchTask", AUDIO_TASK_STACK,null, AUDIO_TASK_PRIORITY, NULL) != pdPASS) {
-        debug("create audio task error\r\n");
+        Log.e("create audio task error\r\n");
     }
 }
 
@@ -202,7 +202,7 @@ static void Audio_LaunchTask(void *pvParameters)
 
     /* 启动初始化线程 */
     if (xTaskCreate(Audio_CmdProcecssTask, "Audio_ProcecssTask", AUDIO_TASK_STACK,null, AUDIO_TASK_PRIORITY, NULL) != pdPASS) {
-        debug("create audio process task error\r\n");
+        Log.e("create audio process task error\r\n");
     }
 
     vTaskDelete(null);
@@ -492,8 +492,8 @@ static uint8_t Audio_WaitAckByTime(uint8_t *data,uint32_t time)
     DriveRetCont = 0;
 #if 0
     for(i = 0; i < count; i++)
-        debug("%X ",data[i]);
-    debug("\r\n");
+        printf("%X ",data[i]);
+    printf("\r\n");
 #endif
 //    Wt2000_AckRecvEnable(false);
     return count;
@@ -528,12 +528,12 @@ static bool Audio_WaitUsbConnect(uint8_t waitTime)
 //		else {
 //            if(Listener != null)
 //                Listener(kStatus_Aud_UsbTimeout,null,null);
-//            debug("Usb connect timeout\r\n");
+//            Log.d("Usb connect timeout\r\n");
 //            return false;
 //        }
     } while(waitTime--);
 
-	debug("Usb connect timeout\r\n");
+	Log.d("Usb connect timeout\r\n");
     return false;
 }
 
@@ -561,7 +561,7 @@ static void Audio_RunningTimer(TimerHandle_t xTimer)
 		audState->state = kStatus_Aud_UsbBroken;
 		if(Listener != null)
         	Listener(audState);
-		debug("Usb was broken!! \r\n");
+		Log.d("Usb was broken!! \r\n");
 		return;
 	}
 
@@ -605,7 +605,7 @@ static void Audio_RunningTimer(TimerHandle_t xTimer)
 
     xSemaphoreGive(UartCmdSendSem);
 
-//    debug("AudioState = %X, audSta = %X, time = %d ,index = %d, usbConnect = %d\r\n",audState->state,playSta,audState->runTime,audState->playIndex,usbConnect);
+//    Log.d("AudioState = %X, audSta = %X, time = %d ,index = %d, usbConnect = %d\r\n",audState->state,playSta,audState->runTime,audState->playIndex,usbConnect);
 
     if(Listener != null)
         Listener(audState);

@@ -26,37 +26,6 @@ static void Time_GetNow(TimePara_S *para);
 static void Time_PrintNow(char *str);
 static void Time_SetNow(TimePara_S *para);
 
-//HAL_RtcPara_S *para;
-//	para = MALLOC(sizeof(HAL_RtcPara_S));
-//	
-//	para->year = 19;
-//		para->month = 12;
-//		para->day = 10;
-//		para->hour = 14;
-//		para->min = 38;
-//		para->sec = 30;
-//		HAL_RtcSetDateTime(tPcf8563,para);
-////	if(HAL_RtcGetRstFlag(tPcf8563)){
-////		debug("RTC has been reset,please check the battery!!\r\n");
-////		para = MALLOC(sizeof(HAL_RtcPara_S));
-
-////		para->year = 19;
-////		para->month = 12;
-////		para->day = 10;
-////		para->hour = 14;
-////		para->min = 38;
-////		para->sec = 30;
-////		
-////		HAL_RtcSetDateTime(tPcf8563,para);
-////		
-////		HAL_RtcSetRstFlag(tPcf8563);
-////	}
-//DELAY(1000);
-//	HAL_RtcGetDateTime(tPcf8563, para);
-//	
-//	sprintf(dateTimeStr,"%02d-%02d-%02d %02d:%02d:%02d",para->year,para->month,para->day,para->hour,para->min,para->sec);
-//	debug("Date time : %s \r\n",dateTimeStr);
-
 /*******************************************************************************
  * Variables
  ******************************************************************************/
@@ -77,13 +46,13 @@ static void Time_Init(void){
 	char timePrin[25];
 
 	if(HAL_RtcGetRstFlag(tPcf8563)){
-			debug("RTC has been reset,please check the battery!!\r\n");
+			Log.e("RTC has been reset,please check the battery!!\r\n");
 			HAL_RtcSetRstFlag(tPcf8563);
 	}
 	else{
 		HAL_RtcGetDateTime(tPcf8563, (HAL_RtcPara_S *)&para);
 		Time_PrintNow(timePrin);
-		debug("RTC init finish!! Time now is %s\r\n", timePrin);
+		Log.d("RTC init finish!! Time now is %s\r\n", timePrin);
 	}
 }
 

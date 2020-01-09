@@ -132,7 +132,7 @@ static uint32_t DataStream_Write(DataStreamHandler_S *streamHandler,const uint8_
 		cntAbaondon++;
   	}else{
   		if(cntAbaondon != 0){
-			debug("!!!Stream is full and abandon data %d times !!!\r\n",cntAbaondon);
+			Log.e("!!!Stream is full and abandon data %d times !!!\r\n",cntAbaondon);
 			cntAbaondon = 0;
 		}
 	}

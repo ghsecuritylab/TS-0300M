@@ -101,6 +101,8 @@ static void App_LauncherTask(void *pvParameters)
 {
 //	taskENTER_CRITICAL();	
 
+	Log.init();
+
 	Database.init();
 
 	Dsp.init();
@@ -115,7 +117,7 @@ static void App_LauncherTask(void *pvParameters)
 	
 //	taskEXIT_CRITICAL();	
 
-    debug("\r\nTasks is being launch.....\r\n");
+    Log.d("\r\nTasks is being launch.....\r\n");
 	
 	Conference.launch();
 	
@@ -139,24 +141,24 @@ static void App_LauncherTask(void *pvParameters)
 
 void HardFault_Handler(void)
 {
-    debug("HardFault Handler!!!\r\n\r\n");
+    Log.e("HardFault Handler!!!\r\n\r\n");
     while(1);
 }
 
 void MemManage_Handler(void)
 {
-    debug("MemManage Handler!!!\r\n\r\n");
+    Log.e("MemManage Handler!!!\r\n\r\n");
     while(1);
 }
 
 void UsageFault_Handler(void){
-	debug("UsageFault Handler!!!\r\n\r\n");
+	Log.e("UsageFault Handler!!!\r\n\r\n");
     while(1);
 }
 
 
 void BusFault_Handler(void){
-	debug("BusFault HandlerHandler!!!\r\n\r\n");
+	Log.e("BusFault HandlerHandler!!!\r\n\r\n");
     while(1);
 }
 

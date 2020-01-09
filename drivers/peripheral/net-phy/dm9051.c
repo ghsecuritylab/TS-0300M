@@ -437,7 +437,7 @@ status_t Dm9051_Init(LPSPI_Type *base,uint32_t pcs,uint8_t *mac,bool broadcast)
                     Dm9051_SpiRead(base,pcs,DM9051_PIDH) << 24);
 
     if(id != 0x90510a46) {
-        debug("DM9051 id error: 0x%x \r\n", id);
+        Log.e("DM9051 id error: 0x%x \r\n", id);
 		return kStatus_Fail;
     }
     /* Setting Auto Mode */

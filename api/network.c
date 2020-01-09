@@ -322,7 +322,7 @@ static void Network_EthConfig(Network_EthPara_S *para){
 		
 	if (xTaskCreate(Network_EthConfigTask, "Network_EthConfigTask", ETH_CONFIG_TASK_STACK, para, ETH_CONFIG_TASK_PRIORITY, NULL) != pdPASS)
     {
-        debug("create Network_EthConfigTask error\r\n");
+        Log.e("create Network_EthConfigTask error\r\n");
     }
 }
 
@@ -345,7 +345,7 @@ static void Network_EthConfigTask(void *pvParameters){
 		
 	taskENTER_CRITICAL();	
 
-	debug("Start to configure Eth%d ...\r\n",ethPara->index);
+	Log.d("Start to configure Eth%d ...\r\n",ethPara->index);
 	ethHandler->isConfiguring = true;
 	ethHandler->index = ethPara->index;
 	ethHandler->connectSta = false;
@@ -395,16 +395,16 @@ static void Network_EthConfigTask(void *pvParameters){
 //	enet_phy_init(ethHandler->config);
 	do{
 		/* 检查及等待网口连接(退出临界区等待) */
-//		debug("Eth%d waiting physical interface connected\r\n",ethHandler->index);
+//		Log.d("Eth%d waiting physical interface connected\r\n",ethHandler->index);
 //		taskEXIT_CRITICAL();
 //		Network_WaitEthConnect(ethHandler);
 //		taskENTER_CRITICAL();
-		debug("Network ETH%d starts initialization!!\r\n",ethHandler->index);
+		Log.d("Network ETH%d starts initialization!!\r\n",ethHandler->index);
 		if(netifapi_netif_add(ethHandler->netif,ethHandler->ip,ethHandler->netmask,ethHandler->gateway, 
 							  ethHandler->config,ethHandler->ethFunc->funcInit,ethHandler->ethFunc->funcInput))
 		{
 			taskEXIT_CRITICAL();
-			debug("Network ETH%d init fail\r\n",ethHandler->index);
+			Log.e("Network ETH%d init fail\r\n",ethHandler->index);
 			DELAY(3000);
 			taskENTER_CRITICAL();
 			continue;
@@ -416,7 +416,7 @@ static void Network_EthConfigTask(void *pvParameters){
 		taskENTER_CRITICAL();
 		
 		Network_SetEthIRQ(ethHandler,true);
-//		debug("Eth%d check auto negotiation success!!\r\n ",ethHandler->index);
+//		Log.d("Eth%d check auto negotiation success!!\r\n ",ethHandler->index);
 		
 		break;
 	}while(1);
@@ -426,13 +426,14 @@ static void Network_EthConfigTask(void *pvParameters){
     netifapi_netif_set_default(ethHandler->netif);
     netifapi_netif_set_up(ethHandler->netif);
 	
-	debug("\r\n****** Configure Eth%d Finish !! ************\r\n",ethHandler->index);
-	debug("****        IP  : %u.%u.%u.%u		****\r\n",ethPara->ip.addr0, ethPara->ip.addr1, ethPara->ip.addr2, ethPara->ip.addr3);
-	debug("****   Netmask  : %u.%u.%u.%u		****\r\n",ethPara->netmask.addr0, ethPara->netmask.addr1, ethPara->netmask.addr2, ethPara->netmask.addr3);
-	debug("****   Gateway  : %u.%u.%u.%u		****\r\n",ethPara->gateway.addr0, ethPara->gateway.addr1, ethPara->gateway.addr2, ethPara->gateway.addr3);
-	debug("****       Mac  : %x.%x.%x.%x.%x.%x	****\r\n",ethHandler->config->macAddress[0],ethHandler->config->macAddress[1],ethHandler->config->macAddress[2], \
+	Log.d("Configure Eth%d Finish !! \r\n",ethHandler->index);
+	printf("********************************************\r\n");
+	printf("****        IP  : %u.%u.%u.%u		****\r\n",ethPara->ip.addr0, ethPara->ip.addr1, ethPara->ip.addr2, ethPara->ip.addr3);
+	printf("****   Netmask  : %u.%u.%u.%u		****\r\n",ethPara->netmask.addr0, ethPara->netmask.addr1, ethPara->netmask.addr2, ethPara->netmask.addr3);
+	printf("****   Gateway  : %u.%u.%u.%u		****\r\n",ethPara->gateway.addr0, ethPara->gateway.addr1, ethPara->gateway.addr2, ethPara->gateway.addr3);
+	printf("****       Mac  : %x.%x.%x.%x.%x.%x	****\r\n",ethHandler->config->macAddress[0],ethHandler->config->macAddress[1],ethHandler->config->macAddress[2], \
 														  ethHandler->config->macAddress[3],ethHandler->config->macAddress[4],ethHandler->config->macAddress[5]);
-	debug("********************************************\r\n");
+	printf("********************************************\r\n");
 	
 	if(ethPara->ethStaListener != null){
 		ethHandler->ethStaListener = ethPara->ethStaListener;
@@ -569,7 +570,7 @@ static Network_TaskHandler_S *Network_CreatNetworkTask(Network_EthIndex_EN index
 			
 			if (xTaskCreate(Network_TaskEthernet, "Network_TaskEthernet", NETWORK_TASK_STACK, taskHandler, NETWORK_TASK_PRIORITY, taskHandler->task) != pdPASS)
 			{
-				debug("create Network_TaskEthernet error\r\n");
+				Log.e("create Network_TaskEthernet error\r\n");
 				goto creat_net_task_err;
 			}
 			
@@ -592,7 +593,7 @@ static Network_TaskHandler_S *Network_CreatNetworkTask(Network_EthIndex_EN index
 			
 			if (xTaskCreate(Network_TaskTcp, "Network_TaskTcp", NETWORK_TASK_STACK, taskHandler, NETWORK_TASK_PRIORITY, taskHandler->task) != pdPASS)
 			{
-				debug("create Network_TaskTcp error\r\n");
+				Log.e("create Network_TaskTcp error\r\n");
 				goto creat_net_task_err;
 			}
 			
@@ -644,7 +645,7 @@ static Network_TaskHandler_S *Network_CreatNetworkTask(Network_EthIndex_EN index
 	
 	
 creat_net_task_err:
-	debug("creat network task fail !!\r\n");
+	Log.e("creat network task fail !!\r\n");
 	if(para != null) FREE(para);
 	if(taskHandler != null)	FREE(taskHandler);
 	return null;
@@ -869,7 +870,7 @@ static err_t Network_EthernetInput(struct pbuf *p, struct netif *netif)
 		ethHandler = &EthHandler[eth1];
 		taskHandler = ethHandler->taskHandler[tEthernet];
 		taskPara = (Network_EthernetTaskPara_S *)taskHandler->para;
-//		debug("frame->destMac : %X:%X:%X:%X:%X:%X\r\n",frame->destMac.mac0,frame->destMac.mac1,frame->destMac.mac2,frame->destMac.mac3,frame->destMac.mac4,frame->destMac.mac5);
+//		Log.d("frame->destMac : %X:%X:%X:%X:%X:%X\r\n",frame->destMac.mac0,frame->destMac.mac1,frame->destMac.mac2,frame->destMac.mac3,frame->destMac.mac4,frame->destMac.mac5);
 		/* 对比IP,MAC,Port */
 		if(NETWORK_COMPARISON_MAC((&(frame->destMac)),(ethHandler->para->mac)) && \
 			NETWORK_COMPARISON_ADDR(frame->destIp,ethHandler->para->ip) && \
@@ -937,7 +938,7 @@ static void Network_TaskEthernet(void *pvParameters){
 	if(taskHandler == null || taskHandler->para == null)
 		vTaskDelete(null);
 	
-	debug("Network_TaskEthernet start!!\r\n");
+	Log.d("Network_TaskEthernet start!!\r\n");
 	
 	ethHandler = &EthHandler[taskHandler->index];
 	taskPara = (Network_EthernetTaskPara_S *)taskHandler->para;
@@ -957,10 +958,10 @@ static void Network_TaskEthernet(void *pvParameters){
 			if(p == null)
 				continue;
 			
-//			debug("get sendBuf pbuf len = %d\r\n",p->len);
+//			Log.d("get sendBuf pbuf len = %d\r\n",p->len);
 //			for(count = 0;count<p->len;count++)
-//				debug("%X ",((uint8_t *)(p->payload))[count]);
-//			debug("\r\n\r\n");
+//				printf("%X ",((uint8_t *)(p->payload))[count]);
+//			printf("\r\n\r\n");
 			Network_EthernetOutput(ethHandler->netif,p);
 		}
 	}
@@ -994,10 +995,10 @@ static void Network_TaskTcp(void *pvParameters){
 	ethHandler = &EthHandler[taskHandler->index];
 	taskPara = (Network_TcpTaskPara_S *)taskHandler->para;
 	
-	/* TCP 服务竿*/
+	/* TCP 服务 */
 	if(taskPara->type == tServer){
 
-		debug("Network tcp server task start!!\r\n");
+		Log.d("Network tcp server task start!!\r\n");
 		
 		
 		taskHandler->srcConn = netconn_new(NETCONN_TCP);
@@ -1037,7 +1038,7 @@ static void Network_TaskTcp(void *pvParameters){
 		ip4_addr_t destIp;
 		NETWORK_PORT destPort;
 		
-		debug("Network tcp client task start!!\r\n");
+		Log.d("Network tcp client task start!!\r\n");
 		
 		IP4_ADDR(&destIp,taskPara->destIp.addr0, taskPara->destIp.addr1, taskPara->destIp.addr2, taskPara->destIp.addr3);
 		destPort = taskPara->destPort;
@@ -1069,7 +1070,7 @@ static void Network_TaskTcp(void *pvParameters){
 	}
 	/* TCP 类型非法传参 */
 	else{
-		debug("Tcp type is invalid, task will be suspend !!\r\n");
+		Log.e("Tcp type is invalid, task will be suspend !!\r\n");
 		vTaskDelete(null);
 		while(1);
 	}
@@ -1256,7 +1257,7 @@ static uint32_t Network_WsDisconnect(void *param, WS_USER_CONTEXT_STRUCT context
 */
 static uint32_t Network_WsError(void *param, WS_USER_CONTEXT_STRUCT context)
 {
-    debug("WebSocket error: 0x%X.\r\n", context.error);
+    Log.e("WebSocket error: 0x%X.\r\n", context.error);
     return (0);
 }
 

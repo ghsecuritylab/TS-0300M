@@ -112,7 +112,10 @@ typedef enum {
 
 /* 单元话筒状态 */
 typedef enum {
-	sClose,sOpen,sApply,sWait
+	kStatus_UnitMic_Close,
+	kStatus_UnitMic_Open,
+	kStatus_UnitMic_Apply,
+	kStatus_UnitMic_Wait,
 }UnitMicSta_EN;
 
 /* 系统语言种类 */

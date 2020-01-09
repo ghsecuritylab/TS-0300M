@@ -228,8 +228,8 @@ static void Wt2000_SendCommand(uint8_t cmd,const uint8_t *para,uint8_t paraLen)
 
 #if 0 
 	for(i = 0;i < len + 2;i++)
-		debug("%X ",CmdBuf[i]);
-	debug("\r\n");
+		printf("%X ",CmdBuf[i]);
+	printf("\r\n");
 #endif
 }
 

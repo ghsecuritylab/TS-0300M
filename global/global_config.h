@@ -55,7 +55,7 @@ extern void APP_GetBuildDate(uint16_t *year,uint16_t *mon,uint16_t *day);
 /* 错误条件判断 */
 #define ERR_CHECK(condition, implement) 								do { if (!(condition)) {implement;}} while(0)
 /* 带debug错误条件判断 */
-#define ERR_CHECK_DBG(condition, dbg, implement) 						do { if (!(condition)) {debug(dbg); implement;}} while(0)
+#define ERR_CHECK_DBG(condition, dbg, implement) 						do { if (!(condition)) {Log.e(dbg); implement;}} while(0)
 /*********************************************************************************************
  * 							    调试信息相关定义
  ********************************************************************************************/

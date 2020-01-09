@@ -58,7 +58,7 @@ void APP_FLEXRAM_IRQ_HANDLER(void)
     uint32_t status = 0;
 
     status = FLEXRAM_GetInterruptStatus(APP_FLEXRAM);
-    debug("APP_FLEXRAM_IRQ_HANDLER: status = %d\r\n",status);
+    Log.d("APP_FLEXRAM_IRQ_HANDLER: status = %d\r\n",status);
 
 }
 
@@ -89,12 +89,12 @@ static status_t OCRAM_Reallocate(void)
 
     if (FLEXRAM_AllocateRam(&ramAllocate) != kStatus_Success)
     {
-        debug("Allocate on-chip ram fail!\r\n");
+        Log.e("Allocate on-chip ram fail!\r\n");
         return kStatus_Fail;
     }
     else
     {
-        debug("Allocate on-chip ram success:ocram=%dKB dtcm=%dKB itcm=%dKB\r\n",
+        Log.d("Allocate on-chip ram success:ocram=%dKB dtcm=%dKB itcm=%dKB\r\n",
               configOCRAM_ALLOCATE_BANK_NUM*32,configDTCM_ALLOCATE_BANK_NUM*32,configITCM_ALLOCATE_BANK_NUM*32);
     }
 
@@ -111,8 +111,8 @@ static void *RAM_ALLOC(size_t size,uint32_t waitTime,const char *funcName) {
 //		vTaskDelay(t&1);
 		if(t)	DELAY(5);
 		ram = pvPortMalloc(size);
-		if(t>=1) debug("wait ram alloc\r\n");
-		//debug("func : %s ram alloc size = %d,ram addr = 0x%x\r\n",funcName,size,ram);
+		if(t>=1) Log.e("wait ram alloc\r\n");
+		//Log.d("func : %s ram alloc size = %d,ram addr = 0x%x\r\n",funcName,size,ram);
 	} while((++t >= waitTime) || !ram );
 	memset(ram,0,size);
     return ram;

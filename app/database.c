@@ -107,10 +107,10 @@ static void Database_Init(void)
     uint8_t *txBuf,*rxBuf;
     uint16_t i;
 
-    debug("Database init start!\r\n");
+    Log.d("Database init start!\r\n");
 	
 	if(FLASH_SECTOR_SIZE % sizeof(UnitCfg_S)){
-		debug("Warnint:UnitCfg_S must Can be divisible by FLASH_SECTOR_SIZE!!");
+		Log.e("Warnint:UnitCfg_S must Can be divisible by FLASH_SECTOR_SIZE!!");
 	}
 
     txBuf = MALLOC(4200);
@@ -150,12 +150,12 @@ static void Database_Init(void)
     }
 
     if (xTaskCreate(Database_SaverTask, "SaverTask", DATABASE_TASK_STACK_SIZE, null, DATABASE_TASK_PRIORITY, null) != pdPASS) {
-        debug("save task error\r\n");
+        Log.e("save task error\r\n");
     }
 
-//	debug("size = %d addr = 0x%X\r\n",sizeof(SysDataSpace),SysDataSpace);
-//	debug("size = %d addr = 0x%X\r\n",sizeof(WiredCfgSpace),WiredCfgSpace);
-//	debug("size = %d addr = 0x%X\r\n",sizeof(WifiCfgSpace),WifiCfgSpace);
+//	Log.d("size = %d addr = 0x%X\r\n",sizeof(SysDataSpace),SysDataSpace);
+//	Log.d("size = %d addr = 0x%X\r\n",sizeof(WiredCfgSpace),WiredCfgSpace);
+//	Log.d("size = %d addr = 0x%X\r\n",sizeof(WifiCfgSpace),WifiCfgSpace);
 }
 
 static void Database_SaverTask(void *pvParameters)
@@ -251,7 +251,7 @@ static void Database_Saver(uint8_t type)
         }
     }
 
-    debug("Database has been saved!\r\n");
+    Log.d("Database has been saved!\r\n");
 }
 
 static void Database_RestoreDefault(uint8_t type)
@@ -281,7 +281,7 @@ static void Database_RestoreDefault(uint8_t type)
             SysCfg->dsp[i].vol = 0x1F;
             SysCfg->dsp[i].downTrans = 0x00;
             SysCfg->dsp[i].dly = 0x00;
-            memset(SysCfg->dsp[i].eqVol,0x0A,10);
+            memset(SysCfg->dsp[i].eqVol,0x0C,10);
             memset(SysCfg->dsp[i].inputVol,0x1F,7);
         }
     }
@@ -291,7 +291,7 @@ static void Database_RestoreDefault(uint8_t type)
             WifiCfg[i].sensitivity = 0x04;
             memset(WifiCfg[i].chVol,0x1F,16);
             memset(WifiCfg[i].eqFreq,0x00,5);
-            memset(WifiCfg[i].eqVol,0x1F,5);
+            memset(WifiCfg[i].eqVol,0x0C,5);
         }
     }
 
@@ -300,12 +300,12 @@ static void Database_RestoreDefault(uint8_t type)
             WiredCfg[i].sensitivity = 0x04;
             memset(WiredCfg[i].chVol,0x1F,16);
             memset(WiredCfg[i].eqFreq,0x00,5);
-            memset(WiredCfg[i].eqVol,0x1F,5);
+            memset(WiredCfg[i].eqVol,0x0C,5);
         }
 
     }
 
-    debug("\r\nDatabase has been restore to default!!\r\n\r\n");
+    Log.d("Database has been restore to default!!\r\n\r\n");
 }
 
 

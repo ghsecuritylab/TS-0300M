@@ -400,10 +400,10 @@ void DataQueue_ErgodicDebug(DataQueueHandler_S *handler){
 	if(queue == null)
 		return;
 	
-    debug("Queue itemSize = %d , totalLen = %d\r\n",queue->itemSize,queue->totalLen);
+    Log.d("Queue itemSize = %d , totalLen = %d\r\n",queue->itemSize,queue->totalLen);
 		
 	if(!queue->qLength){
-		debug("Queue is empty!!\r\n");
+		Log.e("Queue is empty!!\r\n");
 		return;
 	}
 	
@@ -411,11 +411,11 @@ void DataQueue_ErgodicDebug(DataQueueHandler_S *handler){
 	
 	for(i=0;i<queue->qLength;i++){
 		uint8_t *temp;
-		debug("item index = %d , item content : ",qItem->index);
+		Log.d("item index = %d , item content : ",qItem->index);
 		temp = qItem->item;
 		for(j = 0;j<queue->itemSize;j++)
-			debug("0x%X ",temp[j]);
-		debug("\r\n");
+			printf("0x%X ",temp[j]);
+		printf("\r\n");
 		qItem = qItem->next;
 	}
 }

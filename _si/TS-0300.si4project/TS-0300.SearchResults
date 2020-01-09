@@ -1,0 +1,7 @@
+---- ALL_WEB Matches (3 in 1 files) ----
+httpsrv_fs_data.c (D:\KT\TS-0300\Program\TS-0300_V1.0\lwip\src\apps\httpsrv) line 4 : #define  ALL_WEB_PAGE_ENABLE		1
+httpsrv_fs_data.c (D:\KT\TS-0300\Program\TS-0300_V1.0\lwip\src\apps\httpsrv) line 9 : #if ALL_WEB_PAGE_ENABLE
+httpsrv_fs_data.c (D:\KT\TS-0300\Program\TS-0300_V1.0\lwip\src\apps\httpsrv) line 34 : #if ALL_WEB_PAGE_ENABLE
+---- ALL_WEB Search Errors Encountered (1) ----
+The following 1 files could not be processed:
+D:\KT\TS-0300\Program\TS-0300_V1.0\global\model_version.h : File could not be opened.

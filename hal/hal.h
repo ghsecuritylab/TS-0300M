@@ -23,7 +23,7 @@
 
 /* ´ødebug´íÎóÌõ¼þÅÐ¶Ï */
 #ifndef	ERR_CHECK_DBG
-#define ERR_CHECK_DBG(condition, dbg, implement) 		do { if (!(condition)) {debug(dbg); implement;}} while(0)
+#define ERR_CHECK_DBG(condition, dbg, implement) 		do { if (!(condition)) {printf(dbg); implement;}} while(0)
 #endif
 
 

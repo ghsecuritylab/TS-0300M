@@ -185,7 +185,7 @@ ExternalCtrl_S ExternalCtrl = {
 static void ExternalCtrl_Launch(void)
 {
     if (xTaskCreate(ExternalCtrl_LaunchTask, "ExternalCtrlLaunchTask", EXTERNAL_CTRL_TASK_STACK_SIZE, null, EXTERNAL_CTRL_TASK_PRIORITY, null) != pdPASS) {
-        debug("create launch task error\r\n");
+        Log.e("create launch task error\r\n");
     }
 }
 
@@ -239,17 +239,17 @@ static void ExternalCtrl_LaunchTask(void *pvParameters)
 
     /* 启动PC处理线程 */
     if (xTaskCreate(PcCtrl_ProcessTask, "PCProcessTask", EXTERNAL_CTRL_TASK_STACK_SIZE, null, EXTERNAL_CTRL_TASK_PRIORITY, null) != pdPASS) {
-        debug("create PC data receive task error\r\n");
+        Log.e("create PC data receive task error\r\n");
     }
 
     /* 启动WEB处理线程 */
     if (xTaskCreate(WebCtrl_ProcessTask, "WEBProcessTask", EXTERNAL_CTRL_TASK_STACK_SIZE, null, EXTERNAL_CTRL_TASK_PRIORITY, null) != pdPASS) {
-        debug("create WEB data receive task error\r\n");
+        Log.e("create WEB data receive task error\r\n");
     }
 
     /* 启动UART处理线程 */
     if (xTaskCreate(UartCtrl_ProcessTask, "UartProcessTask", EXTERNAL_CTRL_TASK_STACK_SIZE, null, EXTERNAL_CTRL_TASK_PRIORITY, null) != pdPASS) {
-        debug("create UART data receive task error\r\n");
+        Log.e("create UART data receive task error\r\n");
     }
 
     isPcCtrlEnable = isWebCtrlEnable = false;
@@ -269,7 +269,7 @@ static void ExternalCtrl_LaunchTask(void *pvParameters)
 static void ExternalCtrl_EthStaListener(bool sta)
 {
     isEthConnected = sta;
-    debug("External control (net port) %s \r\n",sta ? "connected" : "disconnected");
+    Log.i("External control (net port) %s \r\n",sta ? "connected" : "disconnected");
 }
 
 
@@ -589,7 +589,7 @@ static bool ExternalCtrl_ConnectState(EXE_DEST dest)
 static void PcCtrl_TcpStaListener(bool sta)
 {
     isPcCtrlEnable = sta;
-    debug("PC control is %s \r\n",sta ? "online" : "offline");
+    Log.i("PC control is %s \r\n",sta ? "online" : "offline");
 }
 
 /**
@@ -626,7 +626,7 @@ static void PcCtrl_ProcessTask(void *pvParameters)
     taskPara->tcpListener = PcCtrl_TcpStaListener;
     pcNetTaskHandler = Network.creatTask(NETWORK_ENET_TYPE,tTcp,taskPara);
 
-    debug("PC control process task start!!\r\n");
+    Log.d("PC control process task start!!\r\n");
 
     while(1) {
         Network.receive(pcNetTaskHandler,taskBuf,MAX_NUM);
@@ -661,7 +661,7 @@ static void PcCtrl_ProcessTask(void *pvParameters)
 static void WebCtrl_WsStaListener(bool sta)
 {
     isWebCtrlEnable = sta;
-    debug("Websocket is %s \r\n",sta ? "online" : "offline");
+    Log.i("Websocket is %s \r\n",sta ? "online" : "offline");
 }
 
 /**
@@ -712,7 +712,7 @@ static void WebCtrl_ProcessTask(void *pvParameters)
     /* 初始化网络任务 */
     webNetTaskHandler = Network.creatTask(NETWORK_ENET_TYPE,tHttp,taskPara);
 
-    debug("WEB control process task start!!\r\n");
+    Log.d("WEB control process task start!!\r\n");
 
     while(1) {
         Network.receive(webNetTaskHandler,taskBuf,MAX_NUM);
@@ -770,7 +770,7 @@ static void UartCtrl_ProcessTask(void *pvParameters)
     HAL_UartInit(UartCtrltHandler, config);
     HAL_UartSetCallback(UartCtrltHandler, UartBuf, EXTERNAL_CTRL_DATA_RECEIVE_BUF_SIZE, UartCtrl_UartCallback, null);
 
-    debug("Uart control process task start!!\r\n");
+    Log.d("Uart control process task start!!\r\n");
 
     while(1) {
 //		DELAY(100);

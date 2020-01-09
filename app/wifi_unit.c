@@ -154,7 +154,7 @@ WifiUnit_S WifiUnit = {
 static void WifiUnit_Launch(void)
 {
     if (xTaskCreate(WifiUnit_LaunchTask, "WifiUnit_LaunchTask", WIFI_UNIT_TASK_STACK_SIZE, null, WIFI_UNIT_TASK_PRIORITY, null) != pdPASS) {
-        debug("create launch task error\r\n");
+        Log.e("create launch task error\r\n");
     }
 }
 
@@ -188,11 +188,11 @@ static void WifiUnit_LaunchTask(void *pvParameters)
     }
 
     if (xTaskCreate(WifiUnit_NetDataProcessTask, "WifiUnit_NetDataProcessTask", WIFI_UNIT_TASK_STACK_SIZE, null, WIFI_UNIT_TASK_PRIORITY, null) != pdPASS) {
-        debug("create launch task error\r\n");
+        Log.e("create launch task error\r\n");
     }
 
     if (xTaskCreate(WifiUnit_NetDataTransmitTask, "WifiUnit_NetDataTransmitTask", WIFI_UNIT_TASK_STACK_SIZE, null, WIFI_UNIT_TASK_PRIORITY, null) != pdPASS) {
-        debug("create launch task error\r\n");
+        Log.e("create launch task error\r\n");
     }
 
     /* 启动轮询定时器 */
@@ -222,7 +222,7 @@ static void WifiUnit_NetDataProcessTask(void *pvParameters)
     uint8_t *recvBuffer, recvLength;
 	ConfSysInfo_S *info;
 
-    debug("Wifi unit data process task start!!\r\n");
+    Log.d("Wifi unit data process task start!!\r\n");
 
     recvBuffer = MALLOC(100);
     exData = MALLOC(50);
@@ -242,7 +242,7 @@ static void WifiUnit_NetDataProcessTask(void *pvParameters)
         recvLength = HAL_MacPhyReceive(tDm9051, recvBuffer);
 
         if(recvLength < 64) {
-            debug("wifi unit bad package\r\n");
+            Log.e("wifi unit bad package\r\n");
             continue;
         }
         netBuf = WifiUnit_NetDataAnalysis(recvBuffer);
@@ -257,7 +257,7 @@ static void WifiUnit_NetDataProcessTask(void *pvParameters)
         memcpy(&prot,netBuf->data,sizeof(WifiUnitProtocol_S));
         prot.id = lwip_htons(prot.id);
 
-//        debug("wifi net data: id = %d, cmd = %d , ph = %d , pl = %d \r\n",prot.id,prot.cmd,prot.ph,prot.pl);
+//        Log.d("wifi net data: id = %d, cmd = %d , ph = %d , pl = %d \r\n",prot.id,prot.cmd,prot.ph,prot.pl);
 
         /* 协议内容中有拓展内容 */
         if(netBuf->len > sizeof(WifiUnitProtocol_S)) {
@@ -265,8 +265,8 @@ static void WifiUnit_NetDataProcessTask(void *pvParameters)
             memcpy(exData,netBuf->data + sizeof(WifiUnitProtocol_S),exDataLen);
 
 //            for(int i = 0; i < exDataLen; i++)
-//                debug(" 0x%X ",exData[i]);
-//            debug("\r\n");
+//                printf(" 0x%X ",exData[i]);
+//            printf("\r\n");
         }
 
         if(prot.id > WIFI_UNIT_START_ID && prot.id <= (WIFI_UNIT_START_ID + WIFI_UNIT_MAX_ONLINE_NUM)) {
@@ -372,15 +372,14 @@ static void WifiUnit_AccessSystem(uint16_t id,Network_Mac_S *unitSrcMac,Network_
     WifiUnitProtocol_S prot;
     UnitInfo_S *devInfo;
 
-
     ERR_CHECK(unitSrcMac != null && unitSrcIp != null,return);
 
     devInfo = &unitInfo[id];
 
     /* 设备ID已在线，且MAC与申请进系统MAC不同 */
     if(devInfo->online && !NETWORK_COMPARISON_MAC((&devInfo->mac),unitSrcMac)) {
+		/* 报告会议主线程重复ID */
         Protocol.wifiUnit(&prot,0, IDRepeatingMtoU_G, id >> 8, id & 0xFF);
-//        WifiUnit_NetDataTransmit(kMode_Wifi_Multicast,&prot);
         WifiUnit_NotifyConference(&prot);
     }
     /* 设备ID不在线,或已在线但MAC相同,回复注册成功并回复主机状态 */
@@ -432,6 +431,7 @@ static void WifiUnit_AccessSystem(uint16_t id,Network_Mac_S *unitSrcMac,Network_
             WifiUnit_NotifyConference(&prot);
             devInfo->online = true;
         }
+
     }
 }
 
@@ -749,11 +749,11 @@ static void WifiUnit_MacPhyIrqCallback(void *param)
 
 
 	if(irqSta & MAC_PHY_DM9051_ISR_ROO){
-		debug(" Receive Overflow Counter Overflow!\r\n");
+		Log.e(" Receive Overflow Counter Overflow!\r\n");
 	}
 
 	if(irqSta & MAC_PHY_DM9051_ISR_ROS){
-		debug(" Receive Overflow\r\n");
+		Log.e(" Receive Overflow\r\n");
 	}
 
 	
@@ -762,9 +762,9 @@ static void WifiUnit_MacPhyIrqCallback(void *param)
         HAL_MacPhyGetLink(tDm9051, &lnk);
 
         if(lnk)
-            debug("Wifi unit linked\r\n");
+            Log.d("Wifi port linked\r\n");
         else
-            debug("Wifi unit unlinked\r\n");
+            Log.d("Wifi port unlinked\r\n");
     }
 
     if(irqSta & MAC_PHY_DM9051_ISR_PR) {

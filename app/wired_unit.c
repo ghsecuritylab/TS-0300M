@@ -151,7 +151,7 @@ WiredUnit_S WiredUnit = {
 */
 static void WiredUnit_Launch(void) {
     if (xTaskCreate(WiredUnit_LaunchTask, "WiredUnitLaunchTask", WIRED_UNIT_TASK_STACK_SIZE, null, WIRED_UNIT_TASK_PRIORITY, null) != pdPASS) {
-        debug("create launch task error\r\n");
+        Log.e("create launch task error\r\n");
     }
 }
 
@@ -206,7 +206,7 @@ static void WiredUnit_LaunchTask(void *pvParameters) {
 
     /* 启动单元数据处理线程 */
     if (xTaskCreate(WiredUnit_NetDataProcessTask, "NetDataProcessTask", WIRED_UNIT_TASK_STACK_SIZE, null, WIRED_UNIT_TASK_PRIORITY, null) != pdPASS) {
-        debug("create host task error\r\n");
+        Log.e("create host task error\r\n");
     }
 
     /* 启动轮询定时器 */
@@ -321,7 +321,7 @@ static void WiredUnit_NetDataProcessTask(void *pvParameters) {
     taskBuf->data = MALLOC(UNIT_DATA_RECEIVE_BUF_SIZE);
     taskBuf->maxLen = UNIT_DATA_RECEIVE_BUF_SIZE;
 	
-    debug("Wired unit data process task start!!\r\n");
+    Log.d("Wired unit data process task start!!\r\n");
 	
 	xTimerStart(pollingTimer,0);
 
@@ -409,28 +409,35 @@ clear_buf:
 static void WiredUnit_AccessSystem(uint16_t id,Network_Mac_S *unitSrcMac,UnitAttr_EN attr) {
     ConfProtocol_S prot;
     UnitInfo_S *devInfo;
+	ConfSysInfo_S *info;
 
     if(id <= 0 || id > WIRED_UNIT_MAX_ONLINE_NUM || unitSrcMac == null)
         return;
 
     devInfo = &unitInfo[id];
+	info = Conference.getConfSysInfo();
 
     /* 设备ID已在线，且MAC与申请进系统MAC不同 */
     if(devInfo->online && !NETWORK_COMPARISON_MAC((&devInfo->mac),unitSrcMac)) {
+		
+		/* 先告诉单元允许进入系统(由于单元移植二代逻辑，因此这里增加先允许单元进入系统) */
+		Protocol.conference(&prot,id, BASIC_MSG, CONFERENCE_MODE, UNIT_ACCESS_SYS,info->config->micMode,info->config->wiredAllowOpen << 8);
+		WiredUnit_NetDataTransmit(&prot);
+	
+		/* 然后通知会议主线程ID重复 */
         Protocol.conference(&prot,WHOLE_BROADCAST_ID, BASIC_MSG, CONFERENCE_MODE, ID_DUPICATE,id,null);
-//
-//        WiredUnit_NetDataTransmit(&prot);
         WiredUnit_NotifyConference(&prot);
     }
     /* 设备ID不在线,或已在线但MAC相同 */
     else {
-        Protocol.conference(&prot,id, BASIC_MSG, CONFERENCE_MODE, UNIT_ACCESS_SYS,null,null);
+		/* 同意进入系统并通知话筒模式 */
+        Protocol.conference(&prot,id, BASIC_MSG, CONFERENCE_MODE, UNIT_ACCESS_SYS,info->config->micMode,info->config->wiredAllowOpen << 8);
 		WiredUnit_NetDataTransmit(&prot);
 
 		devInfo->attr = attr;
         devInfo->pollCount = 0;
         NETWORK_SET_MAC((&devInfo->mac),unitSrcMac->mac0,unitSrcMac->mac1,unitSrcMac->mac2,unitSrcMac->mac3,unitSrcMac->mac4,unitSrcMac->mac5);
-
+						
 		/* 如果设备本来已经在线，就不发单元上线通知给会议任务 */
 		if(!devInfo->online){
 			WiredUnit_NotifyConference(&prot);

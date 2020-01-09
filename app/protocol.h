@@ -132,6 +132,7 @@
 
 /* Ç°ÖÃ×Ö¶Î 	BASIC_MSG  EDIT_ID_MODE */
 #define START_EDIT_ID_MODE							(0x80)
+#define END_EDIT_ID_MODE							(0x81)
 #define UNIT_CONFIRM_ID								(0x86)
 
 /* Ç°ÖÃ×Ö¶Î 	BASIC_MSG  VOTE_MODE */

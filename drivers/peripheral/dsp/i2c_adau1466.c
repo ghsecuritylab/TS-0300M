@@ -4,15 +4,15 @@
 *  Author:         陈泽芳 
 *  description :   ADAU1466初始化，音频矩阵API
 */
-#define ALL_DSP_FUNCTION_ENABLE   0
+#define ALL_DSP_FUNCTION_ENABLE  		1
 
 #include "board.h"
 #include "pin_mux.h"
 #include "fsl_common.h"
+#include "fsl_debug_console.h"
 #include "fsl_lpi2c.h"
 #include "i2c_adau1466.h"
 #include "adau1466_reg.h"
-#include "debug.h"
 
 #if ALL_DSP_FUNCTION_ENABLE
 #include "adau1466_1_IC_1.h"
@@ -20,6 +20,8 @@
 #include "adau1466_2_IC_1.h"
 #include "adau1466_2_IC_1_REG.h"
 #endif
+
+#include "debug.h"
 
 #define EXAMPLE_DELAY_COUNT 					8000000
 
@@ -57,9 +59,10 @@ static status_t I2C_ADAU1466_Write(LPI2C_Type *base,uint16_t dev_addr,uint32_t s
 	  lpi2c_master_transfer_t xfer;
     status_t status;
 #if ALL_DSP_FUNCTION_ENABLE
+
 		void *pbuf = (void *)dataBuff;
 	
-	xfer.slaveAddress = (dev_addr>>1);
+		xfer.slaveAddress = (dev_addr>>1);
     xfer.direction = kLPI2C_Write;
     xfer.subaddress = subAdd;
     xfer.subaddressSize = 0x02;
@@ -89,6 +92,7 @@ static uint32_t I2C_ADAU1466_Read(LPI2C_Type *base,uint16_t dev_addr,uint32_t su
 	lpi2c_master_transfer_t masterXfer = {0};
 	status_t reVal = kStatus_Fail;
 #if ALL_DSP_FUNCTION_ENABLE
+
 	masterXfer.slaveAddress = (dev_addr>>1);
 	masterXfer.direction = kLPI2C_Read;
 	masterXfer.subaddress = subAdd;
@@ -119,6 +123,7 @@ static status_t ADAU1466_1_Init()
 {
 	status_t status;
 #if ALL_DSP_FUNCTION_ENABLE
+
 	uint8_t	data_buff[4]={0};
 	SIGMA_WRITE_REGISTER_BLOCK( DSP1_DEVICE_ADDR_IC_1, DSP1_REG_SOFT_RESET_IC_1_ADDR, DSP1_REG_SOFT_RESET_IC_1_BYTE, DSP1_R0_SOFT_RESET_IC_1_Default );
 	SIGMA_WRITE_REGISTER_BLOCK( DSP1_DEVICE_ADDR_IC_1, DSP1_REG_SOFT_RESET_IC_1_ADDR, DSP1_REG_SOFT_RESET_IC_1_BYTE, DSP1_R1_SOFT_RESET_IC_1_Default );
@@ -191,11 +196,10 @@ static status_t ADAU1466_1_Init()
 	SIGMA_WRITE_DELAY( DSP1_DEVICE_ADDR_IC_1, DSP1_R65_START_DELAY_IC_1_SIZE, DSP1_R65_START_DELAY_IC_1_Default );
 	DRIVER_DELAY();
 	status=SIGMA_WRITE_REGISTER_BLOCK( DSP1_DEVICE_ADDR_IC_1, DSP1_REG_HIBERNATE_IC_1_ADDR, DSP1_REG_HIBERNATE_IC_1_BYTE, DSP1_R66_HIBERNATE_IC_1_Default );
-	
 	SIGMA_READ_REGISTER_BLOCK(DSP1_DEVICE_ADDR_IC_1, DSP1_REG_SERIAL_BYTE_6_0_IC_1_ADDR,2,data_buff); // 测试读用
-//	debug("data_buff[0]=%d,data_buff[1]=%d,data_buff[2]=%d,data_buff[3]=%d\r\n",data_buff[0],data_buff[1],data_buff[2],data_buff[3]);
-#endif
-	return status;	
+//	PRINTF("data_buff[0]=%d,data_buff[1]=%d,data_buff[2]=%d,data_buff[3]=%d\r\n",data_buff[0],data_buff[1],data_buff[2],data_buff[3]);
+#endif	
+	return status;
 }
 
 
@@ -211,6 +215,7 @@ static status_t ADAU1466_2_Init()
 {
 	status_t status;
 #if ALL_DSP_FUNCTION_ENABLE
+
 	uint8_t	data_buff[4]={0};
 	SIGMA_WRITE_REGISTER_BLOCK( DSP2_DEVICE_ADDR_IC_1, DSP2_REG_SOFT_RESET_IC_1_ADDR, DSP2_REG_SOFT_RESET_IC_1_BYTE, DSP2_R0_SOFT_RESET_IC_1_Default );
 	SIGMA_WRITE_REGISTER_BLOCK( DSP2_DEVICE_ADDR_IC_1, DSP2_REG_SOFT_RESET_IC_1_ADDR, DSP2_REG_SOFT_RESET_IC_1_BYTE, DSP2_R1_SOFT_RESET_IC_1_Default );
@@ -279,8 +284,8 @@ static status_t ADAU1466_2_Init()
 	status=SIGMA_WRITE_REGISTER_BLOCK( DSP2_DEVICE_ADDR_IC_1, DSP2_REG_HIBERNATE_IC_1_ADDR, DSP2_REG_HIBERNATE_IC_1_BYTE, DSP2_R60_HIBERNATE_IC_1_Default );
 	//return kStatus_Success ;
 	SIGMA_READ_REGISTER_BLOCK(DSP2_DEVICE_ADDR_IC_1, DSP2_REG_SERIAL_BYTE_6_0_IC_1_ADDR,2,data_buff); // 测试读用
-//	debug("data_buff[0]=%d,data_buff[1]=%d,data_buff[2]=%d,data_buff[3]=%d\r\n",data_buff[0],data_buff[1],data_buff[2],data_buff[3]);
-#endif	
+//	PRINTF("data_buff[0]=%d,data_buff[1]=%d,data_buff[2]=%d,data_buff[3]=%d\r\n",data_buff[0],data_buff[1],data_buff[2],data_buff[3]);
+#endif
 	return status;	
 }
 
@@ -295,39 +300,20 @@ static status_t ADAU1466_2_Init()
 */
 void I2C_ADAU1466_Init()
 {
-//		BOARD_InitI2C3Pins();
-//	    lpi2c_master_config_t masterConfig = {0};
-    /*
-    * masterConfig.debugEnable = false;
-    * masterConfig.ignoreAck = false;
-    * masterConfig.pinConfig = kLPI2C_2PinOpenDrain;
-    * masterConfig.baudRate_Hz = 100000U;
-    * masterConfig.busIdleTimeout_ns = 0;
-    * masterConfig.pinLowTimeout_ns = 0;
-    * masterConfig.sdaGlitchFilterWidth_ns = 0;
-    * masterConfig.sclGlitchFilterWidth_ns = 0;
-    */
-//    LPI2C_MasterGetDefaultConfig(&masterConfig);
+#if ALL_DSP_FUNCTION_ENABLE
 
-    /* Change the default baudrate configuration */
-//    masterConfig.baudRate_Hz = I2C_ADAU1466_BAUDRATE;
-
-    /* Initialize the LPI2C master peripheral */
-//    LPI2C_MasterInit(I2C_ADAU1466_BASE, &masterConfig, I2C_ADAU1466_CLOCK_FREQ);
+	status_t status;
+    status = ADAU1466_1_Init(); 
+	if(status)
+		Log.e("DSP_1 init err , sta = %d ... \r\n",status);
 			
-		status_t status =ADAU1466_1_Init(); 
-//		debug("\r\n status is = %d ... \r\n",status);
-		if(status)
-			debug("DSP_1 init err , sta = %d ... \r\n",status);
-//		else
-//			debug("\r\n I2C_ADAU1466_1 is not ok ... \r\n");
-		
-		status =ADAU1466_2_Init(); 
-//		debug("\r\n status is = %d ... \r\n",status);
-		if(status)
-			debug("DSP_1 init err , sta = %d ... \r\n",status);
-//		else
-//			debug("\r\n I2C_ADAU1466_2 is not ok ... \r\n");
+	status = ADAU1466_2_Init(); 
+	if(status)
+		Log.e("DSP_2 init err , sta = %d ... \r\n",status);
+#else
+	Log.e("DSP function disable ...");
+#endif
+
 }
 
 //===========================API===============================//
@@ -343,9 +329,10 @@ void I2C_ADAU1466_Init()
 static status_t ADAU1466_PageSelect(DspDevice_E dev,DspPage_E page)
 {
 	status_t status;
+#if ALL_DSP_FUNCTION_ENABLE
+
 	switch (dev)
 	{
-#if ALL_DSP_FUNCTION_ENABLE
 		case DSP_DEVICE_1:
 			status=I2C_ADAU1466_Write(I2C_ADAU1466_BASE,DSP1_DEVICE_ADDR_IC_1,DSP1_REG_SECOND_PAGE_ENABLE_IC_1_ADDR,REG_PAGE_SELECT_BYTE,DSP_REG_PAGE_SELECT_VALUE[page]);
 			break;
@@ -353,11 +340,12 @@ static status_t ADAU1466_PageSelect(DspDevice_E dev,DspPage_E page)
 		case DSP_DEVICE_2:
 			status=I2C_ADAU1466_Write(I2C_ADAU1466_BASE,DSP2_DEVICE_ADDR_IC_1,DSP2_REG_SECOND_PAGE_ENABLE_IC_1_ADDR,REG_PAGE_SELECT_BYTE,DSP_REG_PAGE_SELECT_VALUE[page]);
 			break;
-#endif	
+		
 		default:
 			status=kStatus_OutOfRange;
 			break;
 	}
+#endif
 	return status;
 }
 
@@ -374,9 +362,10 @@ static status_t ADAU1466_PageSelect(DspDevice_E dev,DspPage_E page)
 static status_t ADAU1466_VolumeCtrl(DspDevice_E dev,uint32_t RegAddr,DspVolume_E vol)
 {
 	status_t status;
+#if ALL_DSP_FUNCTION_ENABLE
+
 	switch (dev)
 	{
-#if ALL_DSP_FUNCTION_ENABLE
 		case DSP_DEVICE_1:
 			status=I2C_ADAU1466_Write(I2C_ADAU1466_BASE,DSP1_DEVICE_ADDR_IC_1,RegAddr,REG_VOLUME_BYTE,DSP_REG_VOLUME_VALUE[vol]);
 			break;
@@ -384,11 +373,12 @@ static status_t ADAU1466_VolumeCtrl(DspDevice_E dev,uint32_t RegAddr,DspVolume_E
 		case DSP_DEVICE_2:
 			status=I2C_ADAU1466_Write(I2C_ADAU1466_BASE,DSP2_DEVICE_ADDR_IC_1,RegAddr,REG_VOLUME_BYTE,DSP_REG_VOLUME_VALUE[vol]);
 			break;
-#endif		
+		
 		default:
 			status=kStatus_OutOfRange;
 			break;
 	}
+#endif
 	return status;
 }
 
@@ -405,9 +395,10 @@ static status_t ADAU1466_VolumeCtrl(DspDevice_E dev,uint32_t RegAddr,DspVolume_E
 static status_t ADAU1466_MuteCtrl(DspDevice_E dev,uint32_t RegAddr,DspMute_E mute)
 {
 	status_t status;
+#if ALL_DSP_FUNCTION_ENABLE
+
 	switch (dev)
 	{
-#if ALL_DSP_FUNCTION_ENABLE
 		case DSP_DEVICE_1:
 			status=I2C_ADAU1466_Write(I2C_ADAU1466_BASE,DSP1_DEVICE_ADDR_IC_1,RegAddr,REG_MUTE_BYTE,DSP_REG_MUTE_VALUE[mute]);
 			break;
@@ -415,11 +406,12 @@ static status_t ADAU1466_MuteCtrl(DspDevice_E dev,uint32_t RegAddr,DspMute_E mut
 		case DSP_DEVICE_2:
 			status=I2C_ADAU1466_Write(I2C_ADAU1466_BASE,DSP2_DEVICE_ADDR_IC_1,RegAddr,REG_MUTE_BYTE,DSP_REG_MUTE_VALUE[mute]);
 			break;
-#endif		
+		
 		default:
 			status=kStatus_OutOfRange;
 			break;
 	}
+#endif
 	return status;
 }
 
@@ -436,9 +428,10 @@ static status_t ADAU1466_MuteCtrl(DspDevice_E dev,uint32_t RegAddr,DspMute_E mut
 static status_t ADAU1466_MonoCtrl(DspDevice_E dev,uint32_t RegAddr,DspMono_E mono)
 {
 	status_t status;
+#if ALL_DSP_FUNCTION_ENABLE
+
 	switch (dev)
 	{
-#if ALL_DSP_FUNCTION_ENABLE
 		case DSP_DEVICE_1:
 			status=I2C_ADAU1466_Write(I2C_ADAU1466_BASE,DSP1_DEVICE_ADDR_IC_1,RegAddr,REG_MONO_BYTE,DSP_REG_MONO_VALUE[mono]);
 			break;
@@ -446,11 +439,12 @@ static status_t ADAU1466_MonoCtrl(DspDevice_E dev,uint32_t RegAddr,DspMono_E mon
 		case DSP_DEVICE_2:
 			status=I2C_ADAU1466_Write(I2C_ADAU1466_BASE,DSP2_DEVICE_ADDR_IC_1,RegAddr,REG_MONO_BYTE,DSP_REG_MONO_VALUE[mono]);
 			break;
-#endif		
+		
 		default:
 			status=kStatus_OutOfRange;
 			break;
 	}
+#endif
 	return status;
 }
 
@@ -465,10 +459,11 @@ static status_t ADAU1466_MonoCtrl(DspDevice_E dev,uint32_t RegAddr,DspMono_E mon
 static status_t ADAU1466_ModeMonoCtrl(DspSysMode_E mode)
 {
 	status_t status;
+#if ALL_DSP_FUNCTION_ENABLE
+
 	uint8_t i;
 	switch (mode)
 	{
-#if ALL_DSP_FUNCTION_ENABLE
 		case DSP_MODE_SI:
 			ADAU1466_PageSelect(DSP_DEVICE_1,DSP_PAGE_1);
 			for(i=0;i<15;i++)
@@ -485,11 +480,11 @@ static status_t ADAU1466_ModeMonoCtrl(DspSysMode_E mode)
 			ADAU1466_MonoCtrl(DSP_DEVICE_1,REG_DSP1_CH1_MONO_SWITCH_ADDR,DSP_MONO_OFF);
 			ADAU1466_PageSelect(DSP_DEVICE_1,DSP_PAGE_0);
 			break;
-#endif
 		default:
 			
 			break;
 	}
+#endif
 	return status;
 }
 
@@ -506,6 +501,8 @@ static status_t ADAU1466_ModeMonoCtrl(DspSysMode_E mode)
 static status_t ADAU1466_DelayCtrl(DspDevice_E dev,uint32_t RegAddr,uint8_t delay)
 {
 	status_t status;
+#if ALL_DSP_FUNCTION_ENABLE
+
 	uint8_t	pbuf[4];
 	uint16_t time;
 	time = delay*48;
@@ -515,7 +512,6 @@ static status_t ADAU1466_DelayCtrl(DspDevice_E dev,uint32_t RegAddr,uint8_t dela
 	pbuf[3]=time %256;
 	switch (dev)
 	{
-#if ALL_DSP_FUNCTION_ENABLE
 		case DSP_DEVICE_1:
 			status=I2C_ADAU1466_Write(I2C_ADAU1466_BASE,DSP1_DEVICE_ADDR_IC_1,RegAddr,REG_DELAY_BYTE,pbuf);
 			break;
@@ -523,11 +519,12 @@ static status_t ADAU1466_DelayCtrl(DspDevice_E dev,uint32_t RegAddr,uint8_t dela
 		case DSP_DEVICE_2:
 			status=I2C_ADAU1466_Write(I2C_ADAU1466_BASE,DSP2_DEVICE_ADDR_IC_1,RegAddr,REG_DELAY_BYTE,pbuf);
 			break;
-#endif		
+		
 		default:
 			status=kStatus_OutOfRange;
 			break;
 	}
+#endif
 	return status;
 }
 /*
@@ -544,10 +541,11 @@ static status_t ADAU1466_DelayCtrl(DspDevice_E dev,uint32_t RegAddr,uint8_t dela
 static status_t ADAU1466_EqCtrl(DspDevice_E dev,uint32_t RegAddr,DspEqPart_E part,DspEqValue_E val)
 {
 	status_t status;
+#if ALL_DSP_FUNCTION_ENABLE
+
 	uint16_t devaddr;
 	switch (dev)
 	{
-#if ALL_DSP_FUNCTION_ENABLE
 		case DSP_DEVICE_1:
 			devaddr =DSP1_DEVICE_ADDR_IC_1;
 			break;
@@ -555,14 +553,13 @@ static status_t ADAU1466_EqCtrl(DspDevice_E dev,uint32_t RegAddr,DspEqPart_E par
 		case DSP_DEVICE_2:
 			devaddr =DSP2_DEVICE_ADDR_IC_1;
 			break;
-#endif		
+		
 		default:
 			devaddr =0x00;
 			break;
 	}
 	switch (part)
 	{
-#if ALL_DSP_FUNCTION_ENABLE
 		case DSP_EQ_100:
 			I2C_ADAU1466_Write(I2C_ADAU1466_BASE,devaddr,RegAddr,REG_EQ_BYTE,DSP_REG_EQ_100_VALUE[val]);		
 			I2C_ADAU1466_Write(I2C_ADAU1466_BASE,devaddr,RegAddr+1,REG_EQ_BYTE,DSP_REG_EQ_100_VALUE[val]+4);
@@ -633,11 +630,11 @@ static status_t ADAU1466_EqCtrl(DspDevice_E dev,uint32_t RegAddr,DspEqPart_E par
 			I2C_ADAU1466_Write(I2C_ADAU1466_BASE,devaddr,RegAddr+3,REG_EQ_BYTE,DSP_REG_EQ_16000_VALUE[val]+12);
 			status=I2C_ADAU1466_Write(I2C_ADAU1466_BASE,devaddr,RegAddr+4,REG_EQ_BYTE,DSP_REG_EQ_16000_VALUE[val]+16);		
 			break;
-#endif
 		default:
 			status=kStatus_OutOfRange;
 			break;
 	}
+#endif
 	return status;
 }
 /*
@@ -652,7 +649,13 @@ status_t ADAU1466_InputSourceReset()
 {
 	status_t status;
 #if ALL_DSP_FUNCTION_ENABLE
+
 	uint8_t i;
+//	//音量3db
+//	pbuf1[0]=0x01;
+//	pbuf1[1]=0x69;
+//	pbuf1[2]=0x9c;
+//	pbuf1[3]=0x0f;
 	//line out 1 
 	for(i=0;i<9;i++)
 		ADAU1466_VolumeCtrl(DSP_DEVICE_2,REG_DSP2_LINE_OUT_1_LINE1_ADDR+i,DSP_VOLUME_0_DB);//
@@ -733,6 +736,8 @@ status_t ADAU1466_InputSourceReset()
 status_t ADAU1466_InputSource(DspOutput_E out,DspInputSrc_E src,DspVolume_E vol)
 {
 	status_t status;
+#if ALL_DSP_FUNCTION_ENABLE
+
 	uint8_t i;
 	switch (out)
 	{
@@ -1250,6 +1255,9 @@ status_t ADAU1466_InputSource(DspOutput_E out,DspInputSrc_E src,DspVolume_E vol)
 			status=kStatus_OutOfRange;
 			break;
 	}
+
+
+#endif
 	return status;
 }
 
@@ -1267,6 +1275,8 @@ status_t ADAU1466_InputSource(DspOutput_E out,DspInputSrc_E src,DspVolume_E vol)
 status_t ADAU1466_NormalOutputHandle(DspOutput_E out,DspOutputType_E src,DspEqPart_E part,uint8_t uchVol)
 {
 	status_t status;
+#if ALL_DSP_FUNCTION_ENABLE
+
 	switch(out)
 	{
 		case DSP_OUTPUT_LINE_OUT1:  //line out 1
@@ -1395,6 +1405,7 @@ status_t ADAU1466_NormalOutputHandle(DspOutput_E out,DspOutputType_E src,DspEqPa
 		default:
 			break;
 	}
+#endif
 	return status;
 }
 /*
@@ -1411,6 +1422,9 @@ status_t ADAU1466_NormalOutputHandle(DspOutput_E out,DspOutputType_E src,DspEqPa
 status_t ADAU1466_ChannelOutputHandle(DspOutput_E out,DspOutputType_E src,DspEqPart_E part,uint8_t uchVol)
 {
 	status_t status;
+
+#if ALL_DSP_FUNCTION_ENABLE
+
 	switch(out)
 	{
 		case DSP_OUTPUT_CH1:  //CH1
@@ -1912,6 +1926,7 @@ status_t ADAU1466_ChannelOutputHandle(DspOutput_E out,DspOutputType_E src,DspEqP
 		default:
 			break;
 	}
+#endif
 	return status;
 }
 
@@ -1926,6 +1941,8 @@ status_t ADAU1466_ChannelOutputHandle(DspOutput_E out,DspOutputType_E src,DspEqP
 status_t ADAU1466_ChannelOutputReset()
 {
 	status_t status;
+#if ALL_DSP_FUNCTION_ENABLE
+
 	uint8_t i;
 	// CH1 
 	ADAU1466_PageSelect(DSP_DEVICE_1,DSP_PAGE_1);
@@ -2070,6 +2087,8 @@ status_t ADAU1466_ChannelOutputReset()
 	for(i=0;i<10;i++)
 		ADAU1466_EqCtrl(DSP_DEVICE_1,REG_DSP1_CH16_EQ_1_1_ADDR+i*5,(DspEqPart_E)i,DSP_EQ_0_DB);
 	ADAU1466_DelayCtrl(DSP_DEVICE_1,REG_DSP1_CH16_DELAY_ADDR,0);
+
+#endif
 	return  status;
 }
 
@@ -2086,6 +2105,8 @@ status_t ADAU1466_ChannelOutputReset()
 status_t ADAU1466_ChannelInputSource(DspOutput_E out,DspInputSrc_E src,DspVolume_E vol)
 {
 	status_t status;
+#if ALL_DSP_FUNCTION_ENABLE
+
 	uint8_t i;
 	switch (g_unDspInfo.mode)
 	{
@@ -3095,41 +3116,41 @@ status_t ADAU1466_ChannelInputSource(DspOutput_E out,DspInputSrc_E src,DspVolume
 				{
 					case DSP_OUTPUT_IN1:    //IN 1输入源
 						if(vol < DSP_VOLUME_N144_DB)
-							ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_LINE1_ADDR,vol);//
+							ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_MIXER_TO_SI_LINE1_ADDR,vol);//REG_DSP1_CHANNEL_OUT_MIXER_TO_SI_LINE1_ADDR
 						else if(vol == DSP_VOLUME_N144_DB)
-							ADAU1466_MuteCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_LINE1_ADDR,DSP_MUTE_ON);//
+							ADAU1466_MuteCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_MIXER_TO_SI_LINE1_ADDR,DSP_MUTE_ON);//
 						break;
 						
 					case DSP_OUTPUT_IN2:    //IN 2输入源
 						if(vol < DSP_VOLUME_N144_DB)
-							ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_LINE2_ADDR,vol);//
+							ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_MIXER_TO_SI_LINE2_ADDR,vol);//
 						else if(vol == DSP_VOLUME_N144_DB)
-							ADAU1466_MuteCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_LINE2_ADDR,DSP_MUTE_ON);//
+							ADAU1466_MuteCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_MIXER_TO_SI_LINE2_ADDR,DSP_MUTE_ON);//
 						break;
 						
 					case DSP_OUTPUT_LINE_IN1:    //LINE IN 1输入源
 						if(vol < DSP_VOLUME_N144_DB)
-							ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_LINE3_ADDR,vol);//
+							ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_MIXER_TO_SI_LINE3_ADDR,vol);//
 						else if(vol == DSP_VOLUME_N144_DB)
-							ADAU1466_MuteCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_LINE3_ADDR,DSP_MUTE_ON);//
+							ADAU1466_MuteCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_MIXER_TO_SI_LINE3_ADDR,DSP_MUTE_ON);//
 						break;
 						
 					case DSP_OUTPUT_LINE_IN2:    //LINE IN 2输入源
 						if(vol < DSP_VOLUME_N144_DB)
-							ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_LINE4_ADDR,vol);//
+							ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_MIXER_TO_SI_LINE4_ADDR,vol);//
 						else if(vol == DSP_VOLUME_N144_DB)
-							ADAU1466_MuteCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_LINE4_ADDR,DSP_MUTE_ON);//
+							ADAU1466_MuteCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_MIXER_TO_SI_LINE4_ADDR,DSP_MUTE_ON);//
 						break;
 						
 					case DSP_OUTPUT_USB_IN:    //USB IN 输入源
 						if(vol < DSP_VOLUME_N144_DB)
 						{
-							ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_USB_ADDR,vol);//
+							ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_MIXER_TO_SI_USB_ADDR,vol);//
 //							ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_DANTE_ADDR,vol);//
 						}
 						else if(vol == DSP_VOLUME_N144_DB)
 						{
-							ADAU1466_MuteCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_USB_ADDR,DSP_MUTE_ON);//
+							ADAU1466_MuteCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_MIXER_TO_SI_USB_ADDR,DSP_MUTE_ON);//
 //							ADAU1466_MuteCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_DANTE_ADDR,DSP_MUTE_ON);//
 						}
 						break;
@@ -3137,12 +3158,12 @@ status_t ADAU1466_ChannelInputSource(DspOutput_E out,DspInputSrc_E src,DspVolume
 					case DSP_OUTPUT_DANTE_IN:    //DANTE IN 输入源
 						if(vol < DSP_VOLUME_N144_DB)
 						{
-							ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_DANTE_ADDR,vol);//
+							ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_MIXER_TO_SI_DANTE_ADDR,vol);//
 //							ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_DANTER_ADDR,vol);//
 						}
 						else if(vol == DSP_VOLUME_N144_DB)
 						{
-							ADAU1466_MuteCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_DANTE_ADDR,DSP_MUTE_ON);//
+							ADAU1466_MuteCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_MIXER_TO_SI_DANTE_ADDR,DSP_MUTE_ON);//
 //							ADAU1466_MuteCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_DANTER_ADDR,DSP_MUTE_ON);//
 						}
 						break;
@@ -3151,12 +3172,12 @@ status_t ADAU1466_ChannelInputSource(DspOutput_E out,DspInputSrc_E src,DspVolume
 						if(vol < DSP_VOLUME_N144_DB)
 						{
 							for(i=0;i<14;i++) //有线+无线话筒14个输入源
-								ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_WIRE1_ADDR+i,vol);//
+								ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_MIXER_TO_SI_WIRE1_ADDR+i,vol);//
 						}
 						else if(vol == DSP_VOLUME_N144_DB)
 						{
 							for(i=0;i<14;i++) //有线+无线话筒14个输入源
-								ADAU1466_MuteCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_WIRE1_ADDR+i,DSP_MUTE_ON);//
+								ADAU1466_MuteCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_MIXER_TO_SI_WIRE1_ADDR+i,DSP_MUTE_ON);//
 						}
 						break;
 					
@@ -3178,7 +3199,7 @@ status_t ADAU1466_ChannelInputSource(DspOutput_E out,DspInputSrc_E src,DspVolume
 		default:
 			break;
 	}
-	
+#endif	
 	return status;
 }
 
@@ -3193,15 +3214,30 @@ status_t ADAU1466_ChannelInputSource(DspOutput_E out,DspInputSrc_E src,DspVolume
 status_t ADAU1466_ChannelInputSourceReset(void)
 {
 	status_t status;
+#if ALL_DSP_FUNCTION_ENABLE
+
 	uint8_t i;
+	uint8_t	pbuf1[4],pbuf2[4];
+	//音量-2.22db
+	pbuf1[0]=0x00;
+	pbuf1[1]=0xC6;
+	pbuf1[2]=0x43;
+	pbuf1[3]=0x21;
+	//音量-0.25db
+	pbuf2[0]=0x00;
+	pbuf2[1]=0xF8;
+	pbuf2[2]=0xBC;
+	pbuf2[3]=0x9C;
 	switch(g_unDspInfo.mode)
 	{
 		case DSP_MODE_WIRE:		//有线模式
 			// 每个话筒输入的总开关
-			for(i=0;i<8;i++)		//有线话筒输入源+无线话筒输入源
+			for(i=0;i<8;i++)		//有线话筒输入源
 				ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_WIRE_IN_1_ADDR+i,DSP_VOLUME_0_DB);//
-			for(i=0;i<6;i++)		//有线话筒输入源+无线话筒输入源
-				ADAU1466_MuteCtrl(DSP_DEVICE_1,REG_DSP1_WIFI_IN_1_ADDR+i,DSP_MUTE_ON);//
+			for(i=0;i<6;i++)		//无线话筒输入源
+				I2C_ADAU1466_Write(I2C_ADAU1466_BASE,DSP1_DEVICE_ADDR_IC_1,REG_DSP1_WIFI_IN_1_ADDR+i,REG_VOLUME_BYTE,pbuf1);
+			for(i=0;i<17;i++)		//16个CH的总输出衰减0.25db
+				I2C_ADAU1466_Write(I2C_ADAU1466_BASE,DSP1_DEVICE_ADDR_IC_1,REG_DSP1_CHANNEL_OUT_1_ADDR+i,REG_VOLUME_BYTE,pbuf2);
 			// 同传原音
 			for(i=0;i<22;i++)		//常规输入源+有线话筒输入源+无线话筒输入源
 				ADAU1466_MuteCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_MIXER_TO_SI_WIRE1_ADDR+i,DSP_MUTE_ON);//
@@ -3256,10 +3292,13 @@ status_t ADAU1466_ChannelInputSourceReset(void)
 			break;
 		case DSP_MODE_WIFI:		//无线模式
 			// 每个话筒输入的总开关
-			for(i=0;i<8;i++)		//有线话筒输入源+无线话筒输入源
-				ADAU1466_MuteCtrl(DSP_DEVICE_1,REG_DSP1_WIRE_IN_1_ADDR+i,DSP_MUTE_ON);//
-			for(i=0;i<6;i++)		//有线话筒输入源+无线话筒输入源
-				ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_WIFI_IN_1_ADDR+i,DSP_VOLUME_0_DB);//
+			for(i=0;i<8;i++)		//有线话筒输入源
+				ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_WIRE_IN_1_ADDR+i,DSP_VOLUME_0_DB);//
+			for(i=0;i<6;i++)		//无线话筒输入源
+				I2C_ADAU1466_Write(I2C_ADAU1466_BASE,DSP1_DEVICE_ADDR_IC_1,REG_DSP1_WIFI_IN_1_ADDR+i,REG_VOLUME_BYTE,pbuf1);
+				//ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_WIFI_IN_1_ADDR+i,DSP_VOLUME_0_DB);//
+			for(i=0;i<17;i++)		//16个CH的总输出衰减0.25db
+				I2C_ADAU1466_Write(I2C_ADAU1466_BASE,DSP1_DEVICE_ADDR_IC_1,REG_DSP1_CHANNEL_OUT_1_ADDR+i,REG_VOLUME_BYTE,pbuf2);
 			// 同传原音
 			for(i=0;i<22;i++)		//常规输入源+有线话筒输入源+无线话筒输入源
 				ADAU1466_MuteCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_MIXER_TO_SI_WIRE1_ADDR+i,DSP_MUTE_ON);//
@@ -3315,8 +3354,12 @@ status_t ADAU1466_ChannelInputSourceReset(void)
 			
 		case DSP_MODE_SI:			//同传模式
 			// 每个话筒输入的总开关
-			for(i=0;i<14;i++)		//有线话筒输入源+无线话筒输入源
+			for(i=0;i<8;i++)		//有线话筒输入源
 				ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_WIRE_IN_1_ADDR+i,DSP_VOLUME_0_DB);//
+			for(i=0;i<6;i++)		//无线话筒输入源
+				I2C_ADAU1466_Write(I2C_ADAU1466_BASE,DSP1_DEVICE_ADDR_IC_1,REG_DSP1_WIFI_IN_1_ADDR+i,REG_VOLUME_BYTE,pbuf1);
+			for(i=0;i<17;i++)		//16个CH的总输出衰减0.25db
+				I2C_ADAU1466_Write(I2C_ADAU1466_BASE,DSP1_DEVICE_ADDR_IC_1,REG_DSP1_CHANNEL_OUT_1_ADDR+i,REG_VOLUME_BYTE,pbuf2);
 			// 同传原音
 			for(i=0;i<22;i++)		//常规输入源+有线话筒输入源+无线话筒输入源
 				ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_MIXER_TO_SI_WIRE1_ADDR+i,DSP_VOLUME_0_DB);//
@@ -3372,8 +3415,12 @@ status_t ADAU1466_ChannelInputSourceReset(void)
 			
 		case DSP_MODE_PARTITION:	//分区模式
 			// 每个话筒输入的总开关
-			for(i=0;i<14;i++)		//有线话筒输入源+无线话筒输入源
+			for(i=0;i<8;i++)		//有线话筒输入源
 				ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_WIRE_IN_1_ADDR+i,DSP_VOLUME_0_DB);//
+			for(i=0;i<6;i++)		//无线话筒输入源
+				I2C_ADAU1466_Write(I2C_ADAU1466_BASE,DSP1_DEVICE_ADDR_IC_1,REG_DSP1_WIFI_IN_1_ADDR+i,REG_VOLUME_BYTE,pbuf1);
+			for(i=0;i<17;i++)		//16个CH的总输出衰减0.25db
+				I2C_ADAU1466_Write(I2C_ADAU1466_BASE,DSP1_DEVICE_ADDR_IC_1,REG_DSP1_CHANNEL_OUT_1_ADDR+i,REG_VOLUME_BYTE,pbuf2);
 			// 同传原音
 			for(i=0;i<22;i++)		//常规输入源+有线话筒输入源+无线话筒输入源
 				ADAU1466_MuteCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_MIXER_TO_SI_WIRE1_ADDR+i,DSP_MUTE_ON);//
@@ -3431,6 +3478,8 @@ status_t ADAU1466_ChannelInputSourceReset(void)
 			break;
 		
 	}
+
+#endif
 	return status;
 }
 /*
@@ -3444,6 +3493,9 @@ status_t ADAU1466_ChannelInputSourceReset(void)
 status_t ADAU1466_NormalOutputReset()
 {
 	status_t status;
+
+#if ALL_DSP_FUNCTION_ENABLE
+
 	uint8_t i;
 	//line out 1
 	ADAU1466_MuteCtrl(DSP_DEVICE_2,REG_DSP2_LINE_OUT_1_MUTE_ADDR,DSP_MUTE_OFF);// not mute
@@ -3477,6 +3529,7 @@ status_t ADAU1466_NormalOutputReset()
 	//下传无线话筒
 	ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_MIXER_TO_WIFI_ADDR,DSP_VOLUME_0_DB);//
 
+#endif
 	return status;
 }
 /*
@@ -3490,6 +3543,8 @@ status_t ADAU1466_NormalOutputReset()
 static status_t ADAU1466_WireModeInit()
 {
 	//status_t status;
+#if ALL_DSP_FUNCTION_ENABLE
+
 	uint8_t i=0;
 	for(i=0;i<16;i++)
 		memset(g_unDspInfo.uchChannelSrc[i],UNIT_CLOSE,sizeof(g_unDspInfo.uchChannelSrc[i]));
@@ -3532,6 +3587,7 @@ static status_t ADAU1466_WireModeInit()
 	ADAU1466_VolumeCtrl(DSP_DEVICE_2,REG_DSP2_DANTE_IN_R_SINGLE_ADDR,DSP_VOLUME_0_DB);  //0DB
 	
 	*/
+#endif
 	return kStatus_Success;
 }
 /*
@@ -3545,6 +3601,8 @@ static status_t ADAU1466_WireModeInit()
 static status_t ADAU1466_WifiModeInit()
 {
 //status_t status;
+#if ALL_DSP_FUNCTION_ENABLE
+
 	uint8_t i=0;
 	for(i=0;i<16;i++)
 		memset(g_unDspInfo.uchChannelSrc[i],UNIT_CLOSE,sizeof(g_unDspInfo.uchChannelSrc[i]));
@@ -3553,7 +3611,7 @@ static status_t ADAU1466_WifiModeInit()
 	ADAU1466_NormalOutputReset();			//常规输出恢复默认配置
 	ADAU1466_InputSourceReset();			//常规输出的输入源恢复默认配置
 	ADAU1466_ChannelInputSourceReset(); //CH1-CH16、同传CH的输入源恢复默认配置
-	
+#endif	
 	return  kStatus_Success;
 }
 
@@ -3568,6 +3626,8 @@ static status_t ADAU1466_WifiModeInit()
 static status_t ADAU1466_SIModeInit()
 {
 //status_t status;
+#if ALL_DSP_FUNCTION_ENABLE
+
 	uint8_t i=0;
 	for(i=0;i<16;i++)
 		memset(g_unDspInfo.uchChannelSrc[i],UNIT_CLOSE,sizeof(g_unDspInfo.uchChannelSrc[i]));
@@ -3576,7 +3636,7 @@ static status_t ADAU1466_SIModeInit()
 	ADAU1466_NormalOutputReset();			//常规输出恢复默认配置
 	ADAU1466_InputSourceReset();			//常规输出的输入源恢复默认配置
 	ADAU1466_ChannelInputSourceReset(); //CH1-CH16、同传CH的输入源恢复默认配置
-	
+#endif	
 	return  kStatus_Success;
 }
 
@@ -3591,6 +3651,8 @@ static status_t ADAU1466_SIModeInit()
 static status_t ADAU1466_PartitionModeInit()
 {
 //status_t status;
+#if ALL_DSP_FUNCTION_ENABLE
+
 	uint8_t i=0;
 	for(i=0;i<16;i++)
 		memset(g_unDspInfo.uchChannelSrc[i],UNIT_CLOSE,sizeof(g_unDspInfo.uchChannelSrc[i]));
@@ -3599,7 +3661,7 @@ static status_t ADAU1466_PartitionModeInit()
 	ADAU1466_NormalOutputReset();			//常规输出恢复默认配置
 	ADAU1466_InputSourceReset();			//常规输出的输入源恢复默认配置
 	ADAU1466_ChannelInputSourceReset(); //CH1-CH16、同传CH的输入源恢复默认配置
-	
+#endif
 	return  kStatus_Success;
 }
 
@@ -3614,6 +3676,8 @@ static status_t ADAU1466_PartitionModeInit()
 status_t ADAU1466_SetMode(DspSysMode_E mod)
 {
 	status_t status;
+#if ALL_DSP_FUNCTION_ENABLE
+
 	switch (mod)
 	{
 		case DSP_MODE_WIRE:
@@ -3640,6 +3704,8 @@ status_t ADAU1466_SetMode(DspSysMode_E mod)
 			status=kStatus_OutOfRange;
 			break;
 	}
+
+#endif
 	return status;
 }
 
@@ -3656,7 +3722,9 @@ status_t ADAU1466_SetMode(DspSysMode_E mod)
 status_t ADAU1466_UnitCtrl(DspUintSrc_E src,uint8_t *out,uint8_t *ovol)
 {
 	status_t status;
-	uint8_t i,j;
+#if ALL_DSP_FUNCTION_ENABLE
+
+	uint8_t i;
 	uint16_t uchOutNum=0;		//输出总数
 	uint16_t uchChNum=0;  //通道号
 	uchOutNum = out[0];// 有线模式、无线模式、同传模式均为1，分区模式最大为16
@@ -3697,8 +3765,8 @@ status_t ADAU1466_UnitCtrl(DspUintSrc_E src,uint8_t *out,uint8_t *ovol)
 					else if(ovol[i] == DSP_VOLUME_N144_DB)		//静音输出
 					{
 						g_unDspInfo.uchChannelSrc[uchChNum][src] = UNIT_CLOSE;
-						for(j=0;j<14;j++) //8个有线输入静音+6个无线输入静音
-							ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_WIRE1_ADDR+uchChNum*22+j,DSP_VOLUME_N144_DB);//
+//						for(j=0;j<14;j++) //8个有线输入静音+6个无线输入静音
+						ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_WIRE1_ADDR+uchChNum*22+src,DSP_VOLUME_N144_DB);//
 					}
 				}
 			}
@@ -3706,18 +3774,18 @@ status_t ADAU1466_UnitCtrl(DspUintSrc_E src,uint8_t *out,uint8_t *ovol)
 		
 		case DSP_MODE_SI:
 			uchChNum = out[uchOutNum];
-			if(uchOutNum == 0x01 && uchChNum <= DSP_OUTPUT_CH16 && uchChNum >= DSP_OUTPUT_CH2 && src<= DSP_UINT_WIFI_6) 
+			if(uchOutNum == 0x01 && uchChNum <DSP_OUTPUT_CH2 && src<= DSP_UINT_WIFI_6) 
 			{
 				if(ovol[uchOutNum] < DSP_VOLUME_N144_DB)		//不静音输出
 				{
 					g_unDspInfo.uchChannelSrc[uchChNum][DSP_UINT_WIRE_1] = UNIT_OPEN;
-					ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_WIRE1_ADDR+uchChNum*22+src,(DspVolume_E)ovol[uchOutNum]);//开对应通道号的音量
+					ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_MIXER_TO_SI_WIRE1_ADDR+uchChNum*22+src,(DspVolume_E)ovol[uchOutNum]);//开对应通道号的音量
 				}
 				else if(ovol[uchOutNum] == DSP_VOLUME_N144_DB)		//静音输出
 				{
 					g_unDspInfo.uchChannelSrc[uchChNum][DSP_UINT_WIRE_1] = UNIT_CLOSE;
 					for(i=0;i<14;i++) //6个无线输入+8个有线输入静音
-						ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_WIRE1_ADDR+uchChNum*22+i,DSP_VOLUME_N144_DB);//
+						ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_MIXER_TO_SI_WIRE1_ADDR+uchChNum*22+i,DSP_VOLUME_N144_DB);//
 				}
 			}
 			
@@ -3730,13 +3798,13 @@ status_t ADAU1466_UnitCtrl(DspUintSrc_E src,uint8_t *out,uint8_t *ovol)
 				if(ovol[uchOutNum] < DSP_VOLUME_N144_DB)		//不静音输出
 				{
 					g_unDspInfo.uchChannelSrc[uchChNum][DSP_UINT_WIFI_1] = UNIT_OPEN;
-					ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_WIFI1_ADDR+uchChNum*22+src,(DspVolume_E)ovol[uchOutNum]);//开对应通道号的音量
+					ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_WIRE1_ADDR+uchChNum*22+src,(DspVolume_E)ovol[uchOutNum]);//开对应通道号的音量
 				}
 				else if(ovol[uchOutNum] == DSP_VOLUME_N144_DB)		//静音输出
 				{
 					g_unDspInfo.uchChannelSrc[uchChNum][DSP_UINT_WIFI_1] = UNIT_CLOSE;
 					for(i=0;i<6;i++) //6个无线输入静音
-						ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_WIFI1_ADDR+uchChNum*22+i,DSP_VOLUME_N144_DB);//
+						ADAU1466_VolumeCtrl(DSP_DEVICE_1,REG_DSP1_CHANNEL_OUT_1_WIRE1_ADDR+uchChNum*22+i,DSP_VOLUME_N144_DB);//
 				}
 			}
 			break;
@@ -3745,6 +3813,8 @@ status_t ADAU1466_UnitCtrl(DspUintSrc_E src,uint8_t *out,uint8_t *ovol)
 			
 			break;
 	}
+
+#endif
 	return status;
 }
 
@@ -3760,9 +3830,9 @@ void ADAU1466_Test()
 {
 	uint8_t i;
 	//=====================DSP1==========================//
-//	debug("\r\n start test reg write\r\n");
+//	PRINTF("\r\n start test reg write\r\n");
 //	ADAU1466_SetMode(DSP_MODE_PARTITION);
-//	debug("\r\n end test reg write\r\n");
+//	PRINTF("\r\n end test reg write\r\n");
 //	g_unDspInfo.mode=DSP_MODE_PARTITION;
 	ADAU1466_ChannelInputSource(DSP_OUTPUT_CH1,DSP_OUTPUT_LINE_IN2,DSP_VOLUME_N15_DB);
 	for(i=0;i<8;i++)

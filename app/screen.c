@@ -95,7 +95,7 @@ Screen_S Screen = {
 */
 static void Screen_Launch(void){
 	if (xTaskCreate(Screen_LaunchTask, "Screen_LaunchTask", SCREEN_TASK_STACK_SIZE, null, SCREEN_TASK_PRIORITY, null) != pdPASS) {
-		debug("create screen launch task error\r\n");
+		Log.e("create screen launch task error\r\n");
 	}
 }
 
@@ -126,7 +126,7 @@ static void Screen_LaunchTask(void *pvParameters){
 
 	if (xTaskCreate(Screen_UartDataProcessTask, "Screen_UartDataProcessTask", SCREEN_TASK_STACK_SIZE,null, SCREEN_TASK_PRIORITY, NULL) != pdPASS)
     {
-        debug("create screen task error\r\n");
+        Log.e("create screen task error\r\n");
     }
 
 	vTaskDelete(null);
@@ -147,6 +147,8 @@ static void Screen_UartDataProcessTask(void *pvParameters)
 	ScreenProtocol_S prot;
 
 	Screen_Transmit(Protocol.screen(&prot,tType_Screen_Page,Welcom_Page));
+	
+	Log.d("Screen process task start...\r\n");
 	while(1){
 		DELAY(100);
 		if(RecvCount < 7)

@@ -280,7 +280,7 @@ static void USB_DiskInit(void)
 
     status = USB_HostInit(CONTROLLER_ID, &UsbHostHandle, USB_HostEvent);
     if (status != kStatus_USB_Success) {
-        debug("host init error\r\n");
+        Log.e("host init error\r\n");
         return;
     }
     USB_HostIsrEnable();
@@ -289,9 +289,9 @@ static void USB_DiskInit(void)
     xSemaphoreGive(UsbDiskOpearatSync);
 
     if(!USB_CmdQueueInit())
-        debug("usb cmd queue int fail!\r\n");
+        Log.e("usb cmd queue int fail!\r\n");
 
-    debug("USB disk init finish!!\r\n");
+    Log.d("USB disk init finish!!\r\n");
 
 //    USB_TaskLauncher();
 }
@@ -500,7 +500,7 @@ static FRESULT USB_Mkdir(const char *path,bool waitResult)
 static void USB_DiskCtrlCmdQueueSend(UsbCmd_S *cmd)
 {
     if(xQueueSend(UsbDiskCmdQueue, cmd, RES_MAX_WAIT) != pdPASS)
-        debug("queue send fail!\r\n");
+        Log.e("queue send fail!\r\n");
 }
 
 
@@ -726,7 +726,7 @@ static void USB_GetUsbDiskInfo()
     fResult = f_getfree((char const *)operaField, (DWORD *)&freeClusterNumber, &fs);
     FREE(operaField);
     if(fResult) {
-        debug("get usb disk info error: %d \r\n",fResult);
+        Log.e("get usb disk info error: %d \r\n",fResult);
         return;
     }
     FreeSize = (freeClusterNumber * (fs->csize) / 2);
@@ -746,15 +746,15 @@ static bool USB_FatfsMount()
     FRESULT fResult;
 
     operaField = MALLOC(10);
-//    debug("Fatfs mount as logiacal driver %d......", USBDISK);
+//    Log.d("Fatfs mount as logiacal driver %d......", USBDISK);
     sprintf(operaField, "%s", USBDISK_ROOT);
     fResult = f_mount(&Fatfs, (char const *)operaField, 0);
     FREE(operaField);
     if (fResult) {
-        debug("error: %d \r\n",fResult);
+        Log.e("error: %d \r\n",fResult);
         return false;
     }
-//    debug("success\r\n");
+//    Log.d("success\r\n");
     return true;
 }
 
@@ -767,15 +767,15 @@ static void USB_FatfsUnmount()
     FRESULT fResult;
 
     operaField = MALLOC(10);
-//    debug("Fatfs unmount driver %d......", USBDISK);
+//    Log.d("Fatfs unmount driver %d......", USBDISK);
     sprintf(operaField, "%s", USBDISK_ROOT);
     fResult = f_unmount((char const *)operaField);
     FREE(operaField);
     if (fResult) {
-        debug("error: %d \r\n",fResult);
+        Log.e("error: %d \r\n",fResult);
         return ;
     }
-//    debug("success\r\n");
+//    Log.d("success\r\n");
     return ;
 }
 
@@ -785,10 +785,10 @@ static void USB_FatfsUnmount()
 */
 static void USB_TaskLauncher(void)
 {
-    debug("usb task launcher!!\r\n");
+    Log.d("usb task launcher!!\r\n");
 
     if (xTaskCreate(USB_HostEhciTask, "USB_HostEhciTask", USB_HOST_EHCI_TASK_STACK, UsbHostHandle, USB_HOST_EHCI_TASK_PRIO, NULL) != pdPASS) {
-        debug("create host task error\r\n");
+        Log.e("create host task error\r\n");
     }
 }
 
@@ -807,7 +807,7 @@ static void USB_HostEhciTask(void *pvParameters)
 static bool USB_CmdQueueInit(void)
 {
     UsbDiskCmdQueue = xQueueCreate(USB_CMD_QUEUE_LEN,USB_CMD_ITEM_SIZE);
-//    debug("usb disk cmd queue init, queue len = %d,item size = %d\r\n",USB_CMD_QUEUE_LEN,USB_CMD_ITEM_SIZE);
+//    Log.d("usb disk cmd queue init, queue len = %d,item size = %d\r\n",USB_CMD_QUEUE_LEN,USB_CMD_ITEM_SIZE);
     return (bool)(UsbDiskCmdQueue != NULL);
 }
 
@@ -861,26 +861,26 @@ static usb_status_t USB_HostEvent(usb_device_handle deviceHandle,
     switch (eventCode) {
     case kUSB_HostEventAttach:
         status = USB_HostMsdEvent(deviceHandle, configurationHandle, eventCode);
-//        debug("\r\nUSB_HostEvent:USB Host Event Attach.\r\n");
+//        Log.d("\r\nUSB_HostEvent:USB Host Event Attach.\r\n");
         if (xTaskCreate(USB_DiskFsMountTask, "USB_DiskFsMountTask", USB_FS_MOUNT_TASK_STACK, &g_MsdFatfsInstance, USB_FS_MOUNT_TASK_PRIO, NULL) != pdPASS) {
-            debug("create host task error\r\n");
+            Log.e("create host task error\r\n");
         }
 		if(Listener != null)
 			Listener(kStatus_DEV_Attached);
         break;
 
     case kUSB_HostEventNotSupported:
-//        debug("USB_HostEvent:device not supported.\r\n");
+//        Log.d("USB_HostEvent:device not supported.\r\n");
         break;
 
     case kUSB_HostEventEnumerationDone:
         status = USB_HostMsdEvent(deviceHandle, configurationHandle, eventCode);
-//        debug("USB_HostEvent:USB Host Event Enumeration Done.\r\n");
+//        Log.d("USB_HostEvent:USB Host Event Enumeration Done.\r\n");
         break;
 
     case kUSB_HostEventDetach:
         status = USB_HostMsdEvent(deviceHandle, configurationHandle, eventCode);
-//        debug("USB_HostEvent:USB Host Event Detach.\r\n");
+//        Log.d("USB_HostEvent:USB Host Event Detach.\r\n");
 		if(Listener != null)
 				Listener(kStatus_DEV_Detached);
         break;
@@ -915,25 +915,25 @@ static void USB_DiskFsMountTask(void *pvParameters)
             status = USB_HostMsdSetInterface(msdFatfsInstance->classHandle, msdFatfsInstance->interfaceHandle, 0,
                                              USB_MsdTransferCallback, msdFatfsInstance);
             if (status != kStatus_USB_Success) {
-                debug("set interface fail\r\n");
+                Log.e("set interface fail\r\n");
             }
             break;
 
         case kUSB_HostMsdRunFSMount: /* set interface succeed */
             if(USB_FatfsMount()) {
                 USB_GetUsbDiskInfo();
-//                debug("USB Disk \'%s\' FAT type = %s\r\n",USBDISK_ROOT,	(FsType == FS_FAT12 ? "FAT12" :
+//                Log.d("USB Disk \'%s\' FAT type = %s\r\n",USBDISK_ROOT,	(FsType == FS_FAT12 ? "FAT12" :
 //                        (FsType == FS_FAT16 ? "FAT16" :
 //                         (FsType == FS_FAT32 ? "FAT32" :
 //                          (FsType == FS_EXFAT ? "EXFAT" :
 //                           "unknow type")))));
-//                debug("The free size: %dKB, the total size:%dKB\r\n",FreeSize,TotalSize);
+//                Log.d("The free size: %dKB, the total size:%dKB\r\n",FreeSize,TotalSize);
                 msdFatfsInstance->runState = kUSB_HostMsdRunStorageOperation;
 
                 if (xTaskCreate(USB_CmdProcessTask, "USB_CmdProcessTask", USB_CMD_PROCESS_TASK_STACK,
                                 null, USB_CMD_PROCESS_TASK_PRIO, &CmdProcessTaskHandler) != pdPASS) {
 
-                    debug("create host task error\r\n");
+                    Log.e("create host task error\r\n");
                 }
 
 				if(Listener != null)
@@ -1004,10 +1004,10 @@ static uint8_t USB_setOutputStream(const char *path,DataStreamHandler_S *dataStr
             if (xTaskCreate(USB_DataStreamProcessTask, "USBStreamProcess", USB_STREAM_TASK_STACK,
                             usbDataStream[index], USB_STREAM_TASK_PRIO, &usbDataStream[index]->taskHandler) != pdPASS) {
 
-                debug("create USBStreamProcess error\r\n");
+                Log.e("create USBStreamProcess error\r\n");
             }
 
-            debug("set Output Data Stream path = \"%s\" \r\n",path);
+            Log.d("set Output Data Stream path = \"%s\" \r\n",path);
             break;
         }
     }
@@ -1058,10 +1058,10 @@ static uint8_t USB_setInputStream(const char *path,DataStreamHandler_S *dataStre
             if (xTaskCreate(USB_DataStreamProcessTask, "USBStreamProcess", USB_STREAM_TASK_STACK,
                             usbDataStream[index], USB_STREAM_TASK_PRIO, &usbDataStream[index]->taskHandler) != pdPASS) {
 
-                debug("create USBStreamProcess error\r\n");
+                Log.e("create USBStreamProcess error\r\n");
             }
 
-            debug("set Iutput Data Stream path = \"%s\" \r\n",path);
+            Log.d("set Iutput Data Stream path = \"%s\" \r\n",path);
             break;
         }
     }
@@ -1091,7 +1091,7 @@ static void USB_closeDataStream(uint8_t index)
     usbDataStream[index]->enable = false;
     GET_RETURN_SEM(usbDataStream[index]->sem,RES_MAX_WAIT);
 
-    debug("finish data stream %d close\r\n",index);
+    Log.d("finish data stream %d close\r\n",index);
 
     vTaskDelete(usbDataStream[index]->taskHandler);
 
@@ -1119,7 +1119,7 @@ static void USB_DataStreamProcessTask(void *pvParameters)
     usbStream = (UsbDataStream_S *)pvParameters;
     stream = usbStream->dataStream;
 
-    debug("Usb DataStream Task launche \r\n\r\n");
+    Log.d("Usb DataStream Task launche \r\n\r\n");
 
     /* 输出流(输出数据到UsbDisk) */
     if(usbStream->type == output) {
@@ -1136,23 +1136,23 @@ static void USB_DataStreamProcessTask(void *pvParameters)
             /* 目标文件不存在，新建文件 */
             if(fResult) {
                 fResult = f_open(usbStream->fp,usbStream->filePath,FA_WRITE|FA_CREATE_NEW);
-                debug("open file path = \"%s\" not exist! creat new file ....",usbStream->filePath);
+                Log.d("open file path = \"%s\" not exist! creat new file ....",usbStream->filePath);
 
                 if(fResult) {
                     FREE(usbStream->fp);
-                    debug("creat fail!\r\n");
+                    Log.e("creat fail!\r\n");
 					xSemaphoreGive(UsbDiskOpearatSync);
                     vTaskDelete(null);
                 }
 
-                debug("success!  \r\n\r\n");
+                Log.d("success!  \r\n\r\n");
             }
 
             /* 目标文件存在，打开文件并把文件指针指向最后 */
             else {
                 f_stat(usbStream->filePath,&fInfo);
                 f_lseek(usbStream->fp,fInfo.fsize);
-                debug("open file path = \"%s\" exist! file size = %d \r\n",usbStream->filePath,fInfo.fsize);
+                Log.d("open file path = \"%s\" exist! file size = %d \r\n",usbStream->filePath,fInfo.fsize);
             }
 
 			xSemaphoreGive(UsbDiskOpearatSync);
@@ -1166,7 +1166,7 @@ static void USB_DataStreamProcessTask(void *pvParameters)
             /* 计算已写入数据流数据大小占总大小百分比，大于50% 或者 计时超过10个单位*/
 //            if( (stream->filledSize * 100 / stream->totalSize) >= 50 ||  usbStream->timeCount > 100)
             if(stream->filledSize > USB_STREAM_BUF_SIZE) {
-//                debug("stream fill precent %d\%  timeconut = %d\r\n",(stream->filledSize * 100 / stream->totalSize),usbStream->timeCount);
+//                Log.d("stream fill precent %d\%  timeconut = %d\r\n",(stream->filledSize * 100 / stream->totalSize),usbStream->timeCount);
 
                 if(stream->filledSize == 0)
                     continue;
@@ -1180,27 +1180,27 @@ static void USB_DataStreamProcessTask(void *pvParameters)
             }
 
             else {
-//										debug("usb output stream:empty size = %d  fill size = %d\r\n",stream->emptySize,stream->filledSize);
+//										Log.d("usb output stream:empty size = %d  fill size = %d\r\n",stream->emptySize,stream->filledSize);
                 usbStream->timeCount ++;
             }
 
             if(usbStream->enable == false) {
-                debug("close data stream ");
+                Log.d("close data stream ");
 
                 if(usbStream->fp != NULL) {
                     fResult = f_close(usbStream->fp);
                     FREE(usbStream->fp);
                 }
                 if(usbStream->filePath != NULL) {
-                    debug(" path = \"%s\"",usbStream->filePath);
+                    Log.d(" path = \"%s\"",usbStream->filePath);
                     FREE(usbStream->filePath);
                 }
 
                 if(usbStream->sem != NULL) {
                     xSemaphoreGive(usbStream->sem);
                 }
+				printf("\r\n");
 
-                debug("\r\n");
             }
 
             xSemaphoreGive(UsbDiskOpearatSync);
@@ -1223,7 +1223,7 @@ static void USB_DataStreamProcessTask(void *pvParameters)
 			xSemaphoreGive(UsbDiskOpearatSync);
             /* 目标文件不存在，新建文件 */
             if(fResult) {
-				debug("file is not exist!!\r\n");
+				Log.e("file is not exist!!\r\n");
 				vTaskDelete(null);
 			}
 
@@ -1234,7 +1234,7 @@ static void USB_DataStreamProcessTask(void *pvParameters)
 			
 			while(stream->emptySize == 0){
 				DELAY(10);
-				debug("stream full\r\n");
+				Log.d("stream full\r\n");
 			}
 		
 			f_read(usbStream->fp,usbStream->buffer, USB_STREAM_BUF_SIZE, &br);
@@ -1244,14 +1244,14 @@ static void USB_DataStreamProcessTask(void *pvParameters)
 			DataStream.write(stream,usbStream->buffer,br);
 
 			if(usbStream->enable == false) {
-                debug("close data stream ");
+                Log.d("close data stream ");
 
                 if(usbStream->fp != NULL) {
                     fResult = f_close(usbStream->fp);
                     FREE(usbStream->fp);
                 }
                 if(usbStream->filePath != NULL) {
-                    debug(" path = \"%s\"",usbStream->filePath);
+                    Log.d(" path = \"%s\"",usbStream->filePath);
                     FREE(usbStream->filePath);
                 }
 
@@ -1259,7 +1259,7 @@ static void USB_DataStreamProcessTask(void *pvParameters)
                     xSemaphoreGive(usbStream->sem);
                 }
 
-                debug("\r\n");
+                printf("\r\n");
             }
 
 			xSemaphoreGive(UsbDiskOpearatSync);
@@ -1284,7 +1284,7 @@ static void USB_CmdProcessTask(void *pvParameters)
 
     ERR_CHECK_DBG(UsbDiskCmdQueue != null, "UsbDiskCmdQueue is null!!\r\n",vTaskSuspend(null));
 
-//	debug("\r\nUsb cmd process task launcher..\r\n");
+//	Log.d("\r\nUsb cmd process task launcher..\r\n");
 
     /* USB任务队列处理 */
     while(1) {
@@ -1365,7 +1365,7 @@ static void USB_CmdProcessTask(void *pvParameters)
             if(cmd.sem != NULL)	xSemaphoreGive(cmd.sem);
             break;
         default:
-            debug("wrong cmd type:%d\r\n",cmd.type);
+            Log.e("wrong cmd type:%d\r\n",cmd.type);
             break;
         }
 
