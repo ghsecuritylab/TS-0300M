@@ -225,7 +225,7 @@ static const uint8_t VoteModeCode[] = {
 };
 
 /* 记录当前显示页面 */
-static uint8_t ScreenCurrentPage = Welcom_Page;
+static uint8_t ScreenCurrentPage = SP_WELCOME;
 
 
 /* USB音频录放控制句柄 */
@@ -422,11 +422,11 @@ static void Conference_TimingTask(TimerHandle_t xTimer)
 
     /* 检测外部控制连接状态,并将屏幕切换到相应状态 */
     if(ExternalCtrl.connectSta(kType_NotiSrc_PC) || ExternalCtrl.connectSta(kType_NotiSrc_Web)) {
-        if(ScreenCurrentPage != PC_Connect_Page)
-            Conference_ScreenPageSwitch(PC_Connect_Page);
+        if(ScreenCurrentPage != SP_EX_CTRL_CONNECT)
+            Conference_ScreenPageSwitch(SP_EX_CTRL_CONNECT);
     } else {
-        if(ScreenCurrentPage == PC_Connect_Page)
-            Conference_ScreenPageSwitch(Main_Munu_Page);
+        if(ScreenCurrentPage == SP_EX_CTRL_CONNECT)
+            Conference_ScreenPageSwitch(SP_MAIN_MENU);
     }
 
 
@@ -596,7 +596,7 @@ static void Conference_MessageProcess(Notify_S *notify)
                     /* 广播通知全WIFI会议系统 */
                     WifiUnit.transmit(kMode_Wifi_Multicast,Protocol.wifiUnit(&wifiProt,0, IDRepeatingMtoU_G, repeatId >> 8, repeatId & 0xFF));
 
-                    Conference_ScreenPageSwitch(ID_Repeat_Page);
+                    Conference_ScreenPageSwitch(SP_ID_PEPEAT);
                 }
             }
             break;
@@ -1405,7 +1405,10 @@ unitVoted:
             break;
             /* 配置下传 */
             case 0x04: {
-                SysInfo.config->dsp[dspOutput].downTrans = para[3];
+				/* 目前只支持配置无线话筒下传开关 */
+				if(dspOutput == DSP_OUTPUT_DOWN_WIFI){
+                	SysInfo.config->dsp[DSP_OUTPUT_DOWN_WIFI].downTrans = para[3];
+				}
             }
             break;
             }
@@ -1827,7 +1830,7 @@ static void Conference_WifiUnitMessageProcess(Notify_S *notify)
         /* 广播通知全WIFI会议系统 */
         WifiUnit.transmit(kMode_Wifi_Multicast,Protocol.wifiUnit(&wifiProt,0, IDRepeatingMtoU_G, ph, pl));
 
-        Conference_ScreenPageSwitch(ID_Repeat_Page);
+        Conference_ScreenPageSwitch(SP_ID_PEPEAT);
     }
     break;
 
@@ -1880,40 +1883,40 @@ static void Conference_ScreenUpdataUnitNum(void)
     num = OnlineNum.wiredChm + OnlineNum.wiredRps;
     exData[0]= (uint8_t)(num >> 8);
     exData[1]= (uint8_t)(num & 0xFF);
-    Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0034),2,exData);
+    Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_WIRED_OL_TOTAL_NUM),2,exData);
 
     /* 更新有线主席机在线数量 */
     exData[0]= (uint8_t)(OnlineNum.wiredChm >> 8);
     exData[1]= (uint8_t)(OnlineNum.wiredChm & 0xFF);
-    Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0035),2,exData);
+    Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_WIRED_OL_CHM_NUM),2,exData);
 
     /* 更新有线代表机在线数量  */
     exData[0]= (uint8_t)(OnlineNum.wiredRps >> 8);
     exData[1]= (uint8_t)(OnlineNum.wiredRps & 0xFF);
-    Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0036),2,exData);
+    Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_WIRED_OL_RPS_NUM),2,exData);
 
 
     /* 更新无线单元在线总数 */
     num = OnlineNum.wifiChm + OnlineNum.wifiRps;
     exData[0]= (uint8_t)(num >> 8);
     exData[1]= (uint8_t)(num & 0xFF);
-    Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0001),2,exData);
+    Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_WIFI_OL_TOTAL_NUM),2,exData);
 
     /* 更新无线主席机在线数量 */
     exData[0]= (uint8_t)(OnlineNum.wifiChm >> 8);
     exData[1]= (uint8_t)(OnlineNum.wifiChm & 0xFF);
-    Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0002),2,exData);
+    Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_WIFI_OL_CHM_NUM),2,exData);
 
     /* 更新无线代表机在线数量 */
     exData[0]= (uint8_t)(OnlineNum.wifiRps >> 8);
     exData[1]= (uint8_t)(OnlineNum.wifiRps & 0xFF);
-    Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0003),2,exData);
+    Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_WIFI_OL_RPS_NUM),2,exData);
 
 
     /* 更新译员机在线数量 */
     exData[0]= (uint8_t)(OnlineNum.interpreter >> 8);
     exData[1]= (uint8_t)(OnlineNum.interpreter & 0xFF);
-    Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0037),2,exData);
+    Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_INTERP_OL_NUM),2,exData);
 
     FREE(exData);
 
@@ -1986,7 +1989,7 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
             switch(cmd) {
             /* 会议模式 */
             case 0x01: {
-                Conference_ScreenPageSwitch(System_Type_Page);
+                Conference_ScreenPageSwitch(SP_UNIT_TYPE);
             }
             break;
 
@@ -1998,19 +2001,19 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
                     /* 切换暂停页面 */
                     case kStatus_Aud_Idle:
                     case kStatus_Aud_Pause: {
-                        Conference_ScreenPageSwitch(RECORD_CARD_PAUSE_Page);
+                        Conference_ScreenPageSwitch(SP_AUD_PLAYER_PAUSE);
                     }
                     break;
                     /* 切换播放页面 */
                     case kStatus_Aud_Playing: {
                         char *name = UsbAudio.musicFile[UsbAudio.playIndex - 1]->fname;
-                        Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x03A0),strlen(name)+1,(uint8_t *)name);
-                        Conference_ScreenPageSwitch(RECORD_CARD_PLAY_Page);
+                        Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_AUD_PLAY_NAME),strlen(name)+1,(uint8_t *)name);
+                        Conference_ScreenPageSwitch(SP_AUD_PLAYER_PLAY);
                     }
                     break;
                     /* 切换录音页面 */
                     case kStatus_Aud_Recording: {
-                        Conference_ScreenPageSwitch(RECORD_CARD_RECOEDING_Page);
+                        Conference_ScreenPageSwitch(SP_AUD_RECORD);
                     }
                     break;
 
@@ -2018,7 +2021,7 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
                         break;
                     }
                 } else {
-                    Conference_ScreenPageSwitch(RECORD_CARD_INITING_Page);
+                    Conference_ScreenPageSwitch(SP_USB_INIT);
                 }
 
             }
@@ -2029,7 +2032,7 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
                 uint16_t year,mon,day;
 
                 /* 切换页面 */
-                Conference_ScreenPageSwitch(SysState_Page);
+                Conference_ScreenPageSwitch(SP_SYS_STATE);
 
                 /* 更新屏幕显示单元数量 */
                 Conference_ScreenUpdataUnitNum();
@@ -2037,28 +2040,30 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
                 APP_GetBuildDate(&year, &mon, &day);
 
                 /* 更新显示当前系统版本号 */
-                sprintf((char *)&exData[0],"%s",APP_VERSION);
-                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0039),sizeof(APP_VERSION),exData);
+                sprintf((char *)&exData[0],"M_%s_%d%d%d",APP_VERSION,year,mon,day);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_SOFTWARE_VERSION_M),16,exData);
 
                 /* 更新显示代码编译日期 */
-                sprintf((char *)&exData[0],"%04d%02d%02d",year,mon,day);
-                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0080),8,exData);
+                sprintf((char *)&exData[0],"S_%s_%d%d%d",APP_VERSION,year,mon,day);
+				Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_SOFTWARE_VERSION_S),16,exData);
             }
             break;
 
             /* 编ID界面 */
             case 0x04: {
+				if(SysInfo.state.startID < 1 || SysInfo.state.startID > 4096)
+					SysInfo.state.startID = 1;
                 /* 切换页面 */
-                Conference_ScreenPageSwitch(SetID_Page);
-                sprintf((char *)&exData[0],"%04d  ",1);
-                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0022),6,exData);
+                Conference_ScreenPageSwitch(SP_SET_ID);
+                sprintf((char *)&exData[0],"%04d  ",SysInfo.state.startID);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_START_ID),6,exData);
             }
             break;
 
             /* 中繁英版本 */
             case 0x05: {
                 /* 切换页面 */
-                Conference_ScreenPageSwitch(SystemSet_Page);
+                Conference_ScreenPageSwitch(SP_SYS_SETTING);
             }
             break;
 
@@ -2071,7 +2076,7 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
             /* ID 模式 */
             case 0x07: {
                 /* 切换页面 */
-                Conference_ScreenPageSwitch(SystemSet_Page);
+                Conference_ScreenPageSwitch(SP_SYS_SETTING);
             }
             break;
             default:
@@ -2129,9 +2134,19 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
         break;
         case 0x2B:  //0 1 2 3无线会议模式中，切换话筒模式
             break;
-
-        case 0x22:  //是否重启网络配置
-            break;
+		/* 编ID起始ID号 */
+        case 0x22:{
+			if(para[2] == 0x02){
+				char strId[5] = {0};
+				
+				strId[0] = para[3];
+				strId[1] = para[4];
+				strId[2] = (&notify->exDataHead)[0];
+				strId[3] = (&notify->exDataHead)[1];
+				
+				sscanf(strId,"%d",&SysInfo.state.startID);
+			}
+		}break;
         case 0x24:  //译员机模式配置
             break;
         case 0x26:  //译员机编ID
@@ -2140,15 +2155,15 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
         case 0x2A: {
             if(cmd == 0x02) {
                 /* 切换页面 */
-                Conference_ScreenPageSwitch(SetID_Proc_Page);
-                SysInfo.state.wiredCurEditID = 1;
-                SysInfo.state.wifiCurEditID = WIFI_ID(1);
+                Conference_ScreenPageSwitch(SP_SET_ID_END);
+                SysInfo.state.wiredCurEditID = SysInfo.state.startID;
+                SysInfo.state.wifiCurEditID = WIFI_ID(SysInfo.state.startID > WIFI_UNIT_MAX_ONLINE_NUM ? WIFI_UNIT_MAX_ONLINE_NUM : SysInfo.state.startID);
 
                 /* 切换会议模式 */
                 Conference_ChangeSysMode(kMode_EditID);
             } else if(cmd == 0x03) {
                 /* 切换页面 */
-                Conference_ScreenPageSwitch(Main_Munu_Page);
+                Conference_ScreenPageSwitch(SP_MAIN_MENU);
 
                 /* 向有线单元发送结束编ID */
                 WiredUnit.transmit(Protocol.conference(&confProt,WHOLE_BROADCAST_ID,BASIC_MSG,EDIT_ID_MODE,END_EDIT_ID_MODE,null,null));
@@ -2171,9 +2186,9 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
             /* 语言选择 */
             case 0x01: {
                 /* 切换页面 */
-                Conference_ScreenPageSwitch(Language_Page);
-                exData[1] = SysInfo.config->language;
-                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0040),2,exData);
+                Conference_ScreenPageSwitch(SP_SET_LANGUAGE);
+//                exData[1] = SysInfo.config->language;
+//                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0040),2,exData);
             }
             break;
 
@@ -2187,19 +2202,19 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
 
 
                 /* 切换页面 */
-                Conference_ScreenPageSwitch(IP_Page);
+                Conference_ScreenPageSwitch(SP_LOCAL_IP);
 
                 sprintf((char *)&exData[0],"%d.%d.%d.%d",ip[0],ip[1],ip[2],ip[3]);
-                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0048),15,exData);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_IP_ADDR),15,exData);
 
                 sprintf((char *)&exData[0],"%d.%d.%d.%d",mask[0],mask[1],mask[2],mask[3]);
-                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0058),15,exData);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_GATEWAY_ADDR),15,exData);
 
                 sprintf((char *)&exData[0],"%d.%d.%d.%d",gw[0],gw[1],gw[2],gw[3]);
-                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0068),15,exData);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_NETMASK_ADDR),15,exData);
 
                 sprintf((char *)&exData[0],"%d",SysInfo.config->port);
-                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0078),5,exData);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_PORT),5,exData);
 
             }
             break;
@@ -2211,7 +2226,11 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
             /* 显示设置-亮度调节 */
             case 0x04: {
                 /* 切换页面 */
-                Conference_ScreenPageSwitch(Display_Page);
+                Conference_ScreenPageSwitch(SP_SET_DISPLAY);
+
+				exData[0] = 0;
+                exData[1] = SysInfo.config->brightness;
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_BRIGHTNESS),2,exData);
             }
             break;
 
@@ -2222,14 +2241,22 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
             /* 音量调节 */
             case 0x06: {
                 /* 切换页面 */
-                Conference_ScreenPageSwitch(Volume_Page);
+                Conference_ScreenPageSwitch(SP_SET_VOLUME);
+
+				exData[0] = 0;
+                exData[1] = SysInfo.config->dsp[DSP_OUTPUT_LINE_OUT1].vol;
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_LINEOUT1_VOL),2,exData);
+
+				exData[0] = 0;
+                exData[1] = SysInfo.config->dsp[DSP_OUTPUT_LINE_OUT2].vol;
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_LINEOUT2_VOL),2,exData);
             }
             break;
 
             /* 下传功能 */
             case 0x07: {
                 /* 切换页面 */
-                Conference_ScreenPageSwitch(Sender_Sound_SW_Page);
+                Conference_ScreenPageSwitch(SP_SET_DOWN_TRANS);
             }
             break;
 
@@ -2258,8 +2285,8 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
                 if(UsbAudio.audSta == kStatus_Aud_Recording) {
                     Audio.stopRec();
                     /* 切换到音频录播主页 */
-//					Conference_ScreenPageSwitch(RECORD_CARD_PAUSE_Page);
-                    Conference_ScreenPageSwitch(RECORD_CARD_WAIT_RECORD_Page);
+//					Conference_ScreenPageSwitch(SP_AUD_PLAYER_PAUSE);
+                    Conference_ScreenPageSwitch(SP_AUD_RECORD_WAIT);
                 } else if(UsbAudio.audSta == kStatus_Aud_Idle || UsbAudio.audSta == kStatus_Aud_Pause) {
                     TimePara_S *time;
                     char *name;
@@ -2269,12 +2296,12 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
 
                     Time.getNow(time);
 
-                    Conference_ScreenPageSwitch(RECORD_CARD_WAIT_RECORD_Page);
+                    Conference_ScreenPageSwitch(SP_AUD_RECORD_WAIT);
                     sprintf(UsbAudio.recFile,"%s%02d%02d","RE",time->hour,time->min);
                     Audio.record(UsbAudio.recFile);
 
                     strcpy(name,UsbAudio.recFile);
-                    Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x03A0),72,(uint8_t *)name);
+                    Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_AUD_PLAY_NAME),72,(uint8_t *)name);
                     FREE(name);
                     FREE(time);
                 }
@@ -2282,7 +2309,7 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
 
             case 0x04://返回
                 /* 切换页面 */
-                Conference_ScreenPageSwitch(Main_Munu_Page);
+                Conference_ScreenPageSwitch(SP_MAIN_MENU);
                 break;
 
             case 0x05://暂停
@@ -2298,13 +2325,13 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
             case 0x01: {
                 Database.restoreDef(kType_Database_SysCfg);
                 Database.saveSpecify(kType_Database_SysCfg,null);
-                Conference_ScreenPageSwitch(Welcom_Page);
+                Conference_ScreenPageSwitch(SP_WELCOME);
             }
             break;
 
             case 0x02: {
                 WifiUnit.transmit(kMode_Wifi_Multicast,Protocol.wifiUnit(&wifiProt,0, MasterStarUp_MtoU_G, 1, 0));
-                Conference_ScreenPageSwitch(Welcom_Page);
+                Conference_ScreenPageSwitch(SP_WELCOME);
             }
             break;
 
@@ -2317,8 +2344,14 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
             break;
         case 0x41://屏发来的下传功能设置
             break;
-        case 0x44://屏发过来请求更新屏幕当前亮度值的
-            break;
+		/* 屏发过来请求更新屏幕当前亮度值的 */
+        case 0x44:{
+			if(cmd >= 0 && cmd <= 64){
+				SysInfo.config->brightness = cmd;
+        		Screen.backlight(cmd);
+				Database.saveSpecify(kType_Database_SysCfg,null);
+			}
+        }break;
         case 0x45://屏发过来请求更新低音值的
             break;
         case 0x50: //屏发来的ID模式设置
@@ -2327,7 +2360,7 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
         /* 重新编ID */
         case 0x51: {
             /* 切换页面 */
-            Conference_ScreenPageSwitch(RESETID_Page);
+            Conference_ScreenPageSwitch(SP_RESET_ID);
             SysInfo.state.wiredCurEditID = 1;
             SysInfo.state.wifiCurEditID = WIFI_ID(1);
             Conference_ChangeSysMode(kMode_EditID);
@@ -2336,12 +2369,13 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
         /* 结束重新编ID */
         case 0x52: {
             /* 切换页面 */
-            Conference_ScreenPageSwitch(Main_Munu_Page);
+            Conference_ScreenPageSwitch(SP_MAIN_MENU);
             Conference_ChangeSysMode(kMode_Conference);
             WifiUnit.transmit(kMode_Wifi_Multicast,Protocol.wifiUnit(&wifiProt,0,MasterStarUp_MtoU_G,0,0));
         }
         break;
-        case 0x54://屏发来会议主机类型选择返回
+		/* 屏发来会议主机类型选择返回 */
+        case 0x54:
             switch(cmd) {
             /* 无线 */
             case 0x00: {
@@ -2351,16 +2385,16 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
 
                 exData[0] = 0;
                 exData[1] = 1;
-                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0005),2,exData);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_CONF_MODE),2,exData);
 
                 /* 切换页面 */
-                Conference_ScreenPageSwitch(ModeNum_Page);
+                Conference_ScreenPageSwitch(SP_CONF_MODE);
 
                 exData[1] = SysInfo.config->micMode - 1;
-                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0012),2,exData);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_SET_MIC_MODE),2,exData);
 
                 exData[1] = Reg[SysInfo.config->wifiAllowOpen];
-                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0014),2,exData);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_SET_MIC_NUM),2,exData);
             }
             break;
 
@@ -2372,16 +2406,16 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
 
                 exData[0] = 0;
                 exData[1] = 0;
-                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0005),2,exData);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_CONF_MODE),2,exData);
 
                 /* 切换页面 */
-                Conference_ScreenPageSwitch(ModeNum_Page);
+                Conference_ScreenPageSwitch(SP_CONF_MODE);
 
                 exData[1] = SysInfo.config->micMode - 1;
-                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0012),2,exData);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_SET_MIC_MODE),2,exData);
 
                 exData[1] = Reg[SysInfo.config->wiredAllowOpen];
-                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0014),2,exData);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_SET_MIC_NUM),2,exData);
             }
             break;
             }
@@ -2405,6 +2439,15 @@ static void Conference_ScreenMessageProcess(Notify_S *notify)
             }
         }
         break;
+		/* 设置LineOut音量 */
+		case 0x92:
+		case 0x94:{
+			DspOutput_E lineout = (reg == 0x92 ? DSP_OUTPUT_LINE_OUT1 : DSP_OUTPUT_LINE_OUT2);
+		
+			SysInfo.config->dsp[lineout].vol = cmd;
+			Dsp.norOutput(lineout,DSP_OUTPUT_VOLUME,(DspEqPart_E)null,cmd);
+			Database.saveSpecify(kType_Database_SysCfg,null);
+		}break;
         default:
             break;
         }
@@ -3723,9 +3766,9 @@ static void Conference_UsbStateListener(status_t sta)
         UsbAudio.mcuConnectUsb = false;
 
 //		/* 当MCU的USB断开时，判断当前音频录放功能的状态，如果是空闲，而且页面停留在录放功能里面，就切换页面 */
-//		if(UsbAudio.audSta == kStatus_Aud_Idle && (ScreenCurrentPage == RECORD_CARD_PAUSE_Page || ScreenCurrentPage == RECORD_CARD_PLAY_Page ||   \
-//			ScreenCurrentPage == RECORD_CARD_RECOEDING_Page || 	ScreenCurrentPage ==RECORD_CARD_WAIT_RECORD_Page)){
-//			Conference_ScreenPageSwitch(RECORD_CARD_INITING_Page);
+//		if(UsbAudio.audSta == kStatus_Aud_Idle && (ScreenCurrentPage == SP_AUD_PLAYER_PAUSE || ScreenCurrentPage == SP_AUD_PLAYER_PLAY ||   \
+//			ScreenCurrentPage == SP_AUD_RECORD || 	ScreenCurrentPage ==SP_AUD_RECORD_WAIT)){
+//			Conference_ScreenPageSwitch(SP_USB_INIT);
 //		}
         Log.i("Usb disk is detached!!\r\n");
     }
@@ -3773,7 +3816,7 @@ static void Conference_AudioStateListener(AudState_S *sta)
     case kStatus_Aud_Playing: {
         if(UsbAudio.audSta != sta->state) {
             UsbAudio.audSta = sta->state;
-            Conference_ScreenPageSwitch(RECORD_CARD_PLAY_Page);
+            Conference_ScreenPageSwitch(SP_AUD_PLAYER_PLAY);
             Log.d("Music playing .. \r\n");
         }
 
@@ -3783,7 +3826,7 @@ static void Conference_AudioStateListener(AudState_S *sta)
                 name = MALLOC(72);
                 strcpy(name,UsbAudio.musicFile[UsbAudio.playIndex - 1]->fname);
                 Log.d("Music name : \'%s\'  ... \r\n",name);
-                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x03A0),72,(uint8_t *)name);
+                Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_AUD_PLAY_NAME),72,(uint8_t *)name);
                 FREE(name);
             }
         }
@@ -3792,7 +3835,7 @@ static void Conference_AudioStateListener(AudState_S *sta)
     case kStatus_Aud_Pause: {
         if(UsbAudio.audSta != sta->state) {
             UsbAudio.audSta = sta->state;
-            Conference_ScreenPageSwitch(RECORD_CARD_PAUSE_Page);
+            Conference_ScreenPageSwitch(SP_AUD_PLAYER_PAUSE);
             Log.d("Music pause .. \r\n");
         }
 
@@ -3803,30 +3846,30 @@ static void Conference_AudioStateListener(AudState_S *sta)
 
         if(UsbAudio.audSta != sta->state) {
             UsbAudio.audSta = sta->state;
-            Conference_ScreenPageSwitch(RECORD_CARD_RECOEDING_Page);
+            Conference_ScreenPageSwitch(SP_AUD_RECORD);
             /* 显示停止录音的按钮 */
             exdata[1] = 0x01;
-            Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0505),2,exdata);
+            Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_AUD_REC_ICO),2,exdata);
         }
 //		Log.d("Audio recording sec = %d \r\n",sta->runTime);
         sprintf(time,"%02d:%02d:%02d",sta->runTime / 3600,sta->runTime / 60,sta->runTime % 60);
-        Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x06A0),9,(uint8_t *)time);
+        Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_AUD_REC_TIME),9,(uint8_t *)time);
     }
     break;
 
     case kStatus_Aud_RecStoped: {
         /* 隐藏录音的按钮 */
         exdata[1] = 0x00;
-        Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,0x0505),2,exdata);
+        Screen.transWithExData(Protocol.screen(&screenProt,tType_Screen_CfgReg,SVR_AUD_REC_ICO),2,exdata);
         UsbAudio.audSta = kStatus_Aud_Idle;
-        Conference_ScreenPageSwitch(RECORD_CARD_PAUSE_Page);
+        Conference_ScreenPageSwitch(SP_AUD_PLAYER_PAUSE);
     }
     break;
     case kStatus_Aud_UsbBroken:
     case kStatus_Aud_StarPlayErr:
     case kStatus_Aud_StarRecErr:
     case kStatus_Aud_UsbTimeout: {
-        Conference_ScreenPageSwitch(RECORD_CARD_INITING_Page);
+        Conference_ScreenPageSwitch(SP_USB_INIT);
         memset(&UsbAudio,0,sizeof(UsbAudio));
         UsbAudio.audSta = kStatus_Aud_Idle;
     }

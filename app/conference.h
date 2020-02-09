@@ -11,56 +11,56 @@
 /*******************************************************************************
  * Definitions
  ******************************************************************************/
- /* 会议模式 */
+/* 会议模式 */
 typedef enum {
-	kMode_Conference = 0, 
-	kMode_Sign, 
-	kMode_Vote, 
-	kMode_EditID, 
-	kMode_DevSign, 
-	kMode_DevVote,
-}SysMode_EN;
+    kMode_Conference = 0,
+    kMode_Sign,
+    kMode_Vote,
+    kMode_EditID,
+    kMode_DevSign,
+    kMode_DevVote,
+} SysMode_EN;
 
 /* 话筒模式 */
 typedef enum {
-	kMode_Mic_Fifo = 1, 
-	kMode_Mic_Normal, 
-	kMode_Mic_VoiceCtrl, 
-	kMode_Mic_Apply,
-}MicMode_EN;
- 
+    kMode_Mic_Fifo = 1,
+    kMode_Mic_Normal,
+    kMode_Mic_VoiceCtrl,
+    kMode_Mic_Apply,
+} MicMode_EN;
 
-/********************** 会议线程通知相关数据结构及定义 *****************************/  
- 
+
+/********************** 会议线程通知相关数据结构及定义 *****************************/
+
 /* 通知源(有线单元、WIFI单元、WEB控制(HTTP)、PC端口控制(TCP)、串口控制、屏幕控制) */
 typedef enum {
-	kType_NotiSrc_WiredUnit 	= (1<<0), 
-	kType_NotiSrc_WifiUnit  	= (1<<1),
-	kType_NotiSrc_Web 			= (1<<2), 
-	kType_NotiSrc_PC			= (1<<3), 
-	kType_NotiSrc_UartCtrl		= (1<<4), 
-	kType_NotiSrc_ScreenCtrl 	= (1<<5),
-}NotifySrcType_EN;
+    kType_NotiSrc_WiredUnit 	= (1<<0),
+    kType_NotiSrc_WifiUnit  	= (1<<1),
+    kType_NotiSrc_Web 			= (1<<2),
+    kType_NotiSrc_PC			= (1<<3),
+    kType_NotiSrc_UartCtrl		= (1<<4),
+    kType_NotiSrc_ScreenCtrl 	= (1<<5),
+} NotifySrcType_EN;
 
 typedef NotifySrcType_EN InstructDest_EN;
 
 /* 通知格式 */
 typedef struct {
-	/* 通知源 */
-	NotifySrcType_EN nSrc;
-	
-	/* 会议通知传参变量 */
-	union{
-		ConfProtocol_S conference;
-		WifiUnitProtocol_S wifi;
-		ScreenProtocol_S screen;
-	}prot;
+    /* 通知源 */
+    NotifySrcType_EN nSrc;
 
-	uint16_t    exLen;
-	uint8_t		exDataHead;
-}Notify_S;
+    /* 会议通知传参变量 */
+    union {
+        ConfProtocol_S conference;
+        WifiUnitProtocol_S wifi;
+        ScreenProtocol_S screen;
+    } prot;
 
-/********************** 会议线程执行操作相关数据结构及定义 *****************************/  
+    uint16_t    exLen;
+    uint8_t		exDataHead;
+} Notify_S;
+
+/********************** 会议线程执行操作相关数据结构及定义 *****************************/
 /* 执行操作目标对象(有线单元、WIFI单元、WEB控制、PC端口控制、串口控制、屏幕控制)
 	通过 NotifySrcType_EN 强转short型数据，通过位判断确定操作目标*/
 #define EXE_DEST							uint16_t
@@ -69,7 +69,7 @@ typedef struct {
 #define ALL_UNIT							(kType_NotiSrc_WifiUnit|kType_NotiSrc_WiredUnit)
 
 
-/********************** 单元设备相关数据结构及定义 *****************************/ 
+/********************** 单元设备相关数据结构及定义 *****************************/
 /* 单元类型数量 */
 #define UNIT_TYPE_NUM								(2)
 
@@ -100,45 +100,45 @@ typedef struct {
 #endif
 
 
- /* 单元类型（有线单元、WIFI单元） */
- typedef enum{
-	tWired = 0, tWifi = 1
- }UnitType_EN;
- 
+/* 单元类型（有线单元、WIFI单元） */
+typedef enum {
+    tWired = 0, tWifi = 1
+} UnitType_EN;
+
 /* 单元属性（主席、单元、译员） */
 typedef enum {
-	aRepresentative, aChairman, aInterpreter
-}UnitAttr_EN;
+    aRepresentative, aChairman, aInterpreter
+} UnitAttr_EN;
 
 /* 单元话筒状态 */
 typedef enum {
-	kStatus_UnitMic_Close,
-	kStatus_UnitMic_Open,
-	kStatus_UnitMic_Apply,
-	kStatus_UnitMic_Wait,
-}UnitMicSta_EN;
+    kStatus_UnitMic_Close,
+    kStatus_UnitMic_Open,
+    kStatus_UnitMic_Apply,
+    kStatus_UnitMic_Wait,
+} UnitMicSta_EN;
 
 /* 系统语言种类 */
 typedef enum {
-	Chinese = 1,
-	English,
-	Russian,
-	French,
-}Language_EN;
+    Chinese = 1,
+    English,
+    Russian,
+    French,
+} Language_EN;
 
 /* 在线话筒数 */
 typedef struct {
-	/* 有线主席单元 */
-	uint16_t wiredChm;
-	/* 有线代表单元 */
-	uint16_t wiredRps;
-	/* WIFI主席单元 */
-	uint16_t wifiChm;
-	/* WIFI代表单元 */
-	uint16_t wifiRps;
-	/* 译员机 */
-	uint16_t interpreter;
-}UnitOnlineNum;
+    /* 有线主席单元 */
+    uint16_t wiredChm;
+    /* 有线代表单元 */
+    uint16_t wiredRps;
+    /* WIFI主席单元 */
+    uint16_t wifiChm;
+    /* WIFI代表单元 */
+    uint16_t wifiRps;
+    /* 译员机 */
+    uint16_t interpreter;
+} UnitOnlineNum;
 
 
 
@@ -151,92 +151,96 @@ typedef struct {
 #pragma pack(1)
 typedef struct {
 
-	/* 上线标志 */
-	bool online;
+    /* 上线标志 */
+    bool online;
 
-	/* 允许签到 */
-	bool allowSign;
-	/* 签到标志 */
-	bool sign;
+    /* 允许签到 */
+    bool allowSign;
+    /* 签到标志 */
+    bool sign;
 
-	/* 允许投票 */
-	bool allowVote;
-	/* 投票结果 */
-	uint8_t vote;
-	
-	/* 轮询计数（得到应答会清空，
-	   计数超过"POLLING_NO_REPLY_OFFLINE_COUNT"判断离线） */
-	uint16_t pollCount;
-	
-	/* 单元类型（主席、代表、译员机） */
-	UnitAttr_EN attr;
-	
-	/* 单元MAC,IP */
-	NETWORK_MAC mac;
-	NETWORK_IP ip;
-	
-	/* 单元话筒状态(开、关、申请、等待) */
-	UnitMicSta_EN micSta;
-	
-	/* 打开话筒时音频通道（默认0） */
-	uint8_t channel;
+    /* 允许投票 */
+    bool allowVote;
+    /* 投票结果 */
+    uint8_t vote;
 
-	/* 电量、信号值(wifi) */
-	uint8_t soc;
-	uint8_t rssi;
+    /* 轮询计数（得到应答会清空，
+       计数超过"POLLING_NO_REPLY_OFFLINE_COUNT"判断离线） */
+    uint16_t pollCount;
 
-	/* 单元配置（需要连接到Database 用于保存） */
-	UnitCfg_S *config;
-}UnitInfo_S;
+    /* 单元类型（主席、代表、译员机） */
+    UnitAttr_EN attr;
+
+    /* 单元MAC,IP */
+    NETWORK_MAC mac;
+    NETWORK_IP ip;
+
+    /* 单元话筒状态(开、关、申请、等待) */
+    UnitMicSta_EN micSta;
+
+    /* 打开话筒时音频通道（默认0） */
+    uint8_t channel;
+
+    /* 电量、信号值(wifi) */
+    uint8_t soc;
+    uint8_t rssi;
+
+    /* 单元配置（需要连接到Database 用于保存） */
+    UnitCfg_S *config;
+} UnitInfo_S;
 #pragma pack()
 
 
 
- /**
- * @Description  会议系统数据结构
- *
- **/
- typedef struct {
-
-	/* 系统状态 */
-	 struct {
-		/* 系统模式 */
-		 SysMode_EN sysMode;
-		 
-		/* 投票模式 */
-		VoteMode_EN voteMode;
-	 
-		 /* 有线单元当前ID(编ID) */
-		 uint16_t wiredCurEditID;
-
-		  /* WIFI单元当前ID(编ID) */
-		 uint16_t wifiCurEditID;
-	 
-		 /* 签到总人数 */
-		 uint16_t totalSignNum;
-		 
-		 /* 当前签到人数 */
-		 uint16_t currentSignNum;
-	 }state;
- 
-	/* 系统配置（需要连接到Database 用于保存） */
-	SysCfg_S *config;
- 
- }ConfSysInfo_S;
-
-
-
- /* API struct */
+/**
+* @Description  会议系统数据结构
+*
+**/
 typedef struct {
-	void (*launch)(void);
-	void (*notify)(Notify_S *);
-	void (*getOnlineNum)(UnitOnlineNum *);
-	SysMode_EN (*getSysMode)(void);
-	uint16_t (*getCurrentEditId)(void);
-	UnitInfo_S *(*wiredUnitInfo)(void);
-	UnitInfo_S *(*wifiUnitInfo)(void);
-	ConfSysInfo_S *(*getConfSysInfo)(void);
-}Conference_S;
+
+    /* 系统状态 */
+    struct {
+        /* 系统模式 */
+        SysMode_EN sysMode;
+
+        /* 投票模式 */
+        VoteMode_EN voteMode;
+
+        /* 有线单元当前ID(编ID) */
+        uint16_t wiredCurEditID;
+
+        /* WIFI单元当前ID(编ID) */
+        uint16_t wifiCurEditID;
+
+		/* 起始ID(编ID) */
+		uint32_t startID;
+
+        /* 签到总人数 */
+        uint16_t totalSignNum;
+
+        /* 当前签到人数 */
+        uint16_t currentSignNum;
+		
+    } state;
+
+    /* 系统配置（需要连接到Database 用于保存） */
+    SysCfg_S *config;
+
+} ConfSysInfo_S;
+
+
+
+/* API struct */
+typedef struct {
+    void (*launch)(void);
+    void (*notify)(Notify_S *);
+    void (*getOnlineNum)(UnitOnlineNum *);
+    SysMode_EN (*getSysMode)(void);
+    uint16_t (*getCurrentEditId)(void);
+    UnitInfo_S *(*wiredUnitInfo)(void);
+    UnitInfo_S *(*wifiUnitInfo)(void);
+    ConfSysInfo_S *(*getConfSysInfo)(void);
+} Conference_S;
 
 /*******************************************************************************
  * API

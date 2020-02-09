@@ -117,7 +117,7 @@ static void App_LauncherTask(void *pvParameters)
 	
 //	taskEXIT_CRITICAL();	
 
-    Log.d("\r\nTasks is being launch.....\r\n");
+    Log.d("Tasks is being launch.....\r\n");
 	
 	Conference.launch();
 	

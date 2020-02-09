@@ -269,6 +269,9 @@ static void ExternalCtrl_LaunchTask(void *pvParameters)
 static void ExternalCtrl_EthStaListener(bool sta)
 {
     isEthConnected = sta;
+	if(!sta){
+		isPcCtrlEnable = isWebCtrlEnable = false;
+	}
     Log.i("External control (net port) %s \r\n",sta ? "connected" : "disconnected");
 }
 

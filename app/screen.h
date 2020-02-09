@@ -10,6 +10,7 @@ typedef struct {
 	void (*launch)(void);
 	void (*transWithExData)(ScreenProtocol_S *prot, uint16_t exLen, uint8_t *exData);
 	void (*transmit)(ScreenProtocol_S *prot);
+	void (*backlight)(uint8_t brightness);
 }Screen_S;
 
 

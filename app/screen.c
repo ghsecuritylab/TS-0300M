@@ -55,6 +55,8 @@
 static void Screen_Launch(void);
 static void Screen_TransmitWithExData(ScreenProtocol_S *prot,uint16_t exLen, uint8_t *exData);
 static void Screen_Transmit(ScreenProtocol_S *prot);
+static void Screen_SetBacklight(uint8_t brightness);
+
 
 /* Internal */
 static void Screen_LaunchTask(void *pvParameters);
@@ -80,6 +82,7 @@ Screen_S Screen = {
 	.launch = Screen_Launch,
 	.transmit = Screen_Transmit,
 	.transWithExData = Screen_TransmitWithExData,
+	.backlight = Screen_SetBacklight,
 };
 /*******************************************************************************
  * Code
@@ -145,8 +148,9 @@ static void Screen_LaunchTask(void *pvParameters){
 static void Screen_UartDataProcessTask(void *pvParameters)
 {
 	ScreenProtocol_S prot;
+	uint8_t exData[15],exLen;
 
-	Screen_Transmit(Protocol.screen(&prot,tType_Screen_Page,Welcom_Page));
+	Screen_Transmit(Protocol.screen(&prot,tType_Screen_Page,SP_WELCOME));
 	
 	Log.d("Screen process task start...\r\n");
 	while(1){
@@ -154,10 +158,18 @@ static void Screen_UartDataProcessTask(void *pvParameters)
 		if(RecvCount < 7)
 			continue;
 
-		if(RecvBuf[0] == 0x5A && RecvBuf[1] == 0xA5 && RecvBuf[2] > 4){
+		if(RecvBuf[0] == 0x5A && RecvBuf[1] == 0xA5 && RecvBuf[2] > 4 && RecvBuf[2] <= 6){
 			prot.type = (ScreenProtType_EN)RecvBuf[3];
 			memcpy(&prot.para[0],&RecvBuf[4],RecvBuf[2] - 1);
 			Screen_NotifyConference(&prot);
+		}
+		else if(RecvBuf[0] == 0x5A && RecvBuf[1] == 0xA5 && RecvBuf[2] > 6){
+			prot.type = (ScreenProtType_EN)RecvBuf[3];
+			memcpy(&prot.para[0],&RecvBuf[4],5);
+
+			exLen = RecvBuf[2] - 6;
+			memcpy(exData,&RecvBuf[9],exLen);
+			Screen_NotifyConferenceWithExData(&prot,exLen,exData);
 		}
 		
 		RecvCount = 0;
@@ -247,7 +259,34 @@ static void Screen_Transmit(ScreenProtocol_S *prot){
 	Screen_TransmitWithExData(prot,null,null);
 }
 
+/**
+* @Name  		Screen_SetBacklight
+* @Author  		KT
+* @Description
+* @para
+*
+*
+* @return
+*/
+static void Screen_SetBacklight(uint8_t brightness)
+{
+	uint8_t cmd[10] = {0x5A, 0xA5, 0x07, 0x80, 0x70, 0x02, 0, 30, 100, 0};
+	cmd[8] = brightness;
+	
+	HAL_UartSend(CtrlUartHandler, cmd, 10);
+}
 
+
+
+/**
+* @Name  		Screen_CtrlUartCallback
+* @Author  		KT
+* @Description
+* @para
+*
+*
+* @return
+*/
 static void Screen_CtrlUartCallback(uint8_t count,void *para)
 {
 	RecvCount = count;

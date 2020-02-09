@@ -348,48 +348,82 @@ typedef enum {
 /*******************************************************************************
  ***                        大彩屏幕（迪文）通讯协议               			             ***
  *******************************************************************************/
-#define Startup_Page 									(00)               //1开机动画
-#define Welcom_Page										(01)               //2欢迎界面
-#define Main_Munu_Page 									(02)               //主界面
-#define ModeNum_Page									(03)               //3会议模式
-#define SetID_Page 										(04)               //4开始编ID
-#define SetID_Proc_Page 								(05)               //5结束编ID
-#define ID_Repeat_Page  								(06)               //6ID重复
-#define RESETID_Page	 								(07)               //ID重复后编ID
-#define EndSetID_Page 									(08)               //结束编ID
-#define Hard_SetID_Page 								(09)               //硬件编ID
-#define StartTranSetID_Page 							(10)               //译员机开始编ID
-#define EndTranSetID_Page								(11)               //译员机结束编ID
-#define SysState_Page 									(12)               //系统状态
-#define SystemSet_Page 									(13)               //系统设置
-#define Language_Page									(14)               //系统设置-语言设置
-#define Display_Page 									(15)               //系统设置-显示设置
-#define Volume_Page 									(16)               //系统设置-音量设置
-#define	System_Restore_default							(17)               //系统设置-恢复默认
-#define IP_Page 										(18)               //系统设置-本地IP
-#define ID_MODE_Page									(19)               //系统设置-编ID模式
-#define	Turn_off_wireless								(20)               //系统设置-无线单元关机
-#define Sender_Sound_SW_Page							(21)               //系统设置-下传功能
-#define RECORD_CARD_PAUSE_Page							(22)               //暂停
-#define RECORD_CARD_PLAY_Page							(23)               //播放
-#define RECORD_CARD_RECOEDING_Page						(24)               //录音播放
-#define RECORD_CARD_WAIT_RECORD_Page					(25)               //等待录音操作有响应
-#define Error_Page										(26)               //输入错误
-#define PC_Connect_Page 								(27)               //PC连接中
-#define Hardware_Error_Page 							(28)               //硬件中断错误
-#define	Restore_default_OK								(29)               //恢复默认成功
-#define EEPROM_Error_Page 								(30)               //未检出到EEPROM
-#define PT2315_Error_Page 								(31)               //音频通道不正常
-#define FPGA_Error_Page 								(32)               //FPGA启动异常						32
-#define W5100_Error_Page 								(33)               //5100启动异常						33
-#define PT2315_Error_Page2								(34)               //
-#define Sinin_Page 										(35)               //硬件签到进行中
-#define Vote_Page 										(36)               //硬件表决进行中
-#define FireAlarm_Page 									(37)               //消防警告
-#define NO_Batteries_Page 								(38)               //电池没装好
-#define Trial_Expires_page								(39)               //试用期已到		
-#define RECORD_CARD_INITING_Page						(40)               //U盘初始化
-#define System_Type_Page								(41)               //机器类型
+/* 屏幕页面 Screen page */
+#define SP_START_UP 										(00)               //1开机动画
+#define SP_WELCOME											(01)               //2欢迎界面
+#define SP_MAIN_MENU 										(02)               //主界面
+#define SP_CONF_MODE										(03)               //3会议模式
+#define SP_SET_ID 											(04)               //4开始编ID
+#define SP_SET_ID_END 										(05)               //5结束编ID
+#define SP_ID_PEPEAT  										(06)               //6ID重复
+#define SP_RESET_ID	 										(07)               //ID重复后编ID
+//#define SP_EndSetID 										(08)               //结束编ID
+//#define SP_Hard_SetID 									(09)               //硬件编ID
+//#define SP_StartTranSetID 								(10)               //译员机开始编ID
+//#define SP_EndTranSetID									(11)               //译员机结束编ID
+#define SP_SYS_STATE 										(12)               //系统状态
+#define SP_SYS_SETTING 										(13)               //系统设置
+#define SP_SET_LANGUAGE										(14)               //系统设置-语言设置
+#define SP_SET_DISPLAY 										(15)               //系统设置-显示设置
+#define SP_SET_VOLUME 										(16)               //系统设置-音量设置
+#define	SP_RESTORE_DEF										(17)               //系统设置-恢复默认
+#define SP_LOCAL_IP 										(18)               //系统设置-本地IP
+//#define SP_ID_MODE										(19)               //系统设置-编ID模式
+#define	SP_SET_WIFI_UNIT_OFF								(20)               //系统设置-无线单元关机
+#define SP_SET_DOWN_TRANS									(21)               //系统设置-下传功能
+#define SP_AUD_PLAYER_PAUSE									(22)               //暂停
+#define SP_AUD_PLAYER_PLAY									(23)               //播放
+#define SP_AUD_RECORD										(24)               //录音播放
+#define SP_AUD_RECORD_WAIT									(25)               //等待录音操作有响应
+#define SP_ERROR											(26)               //输入错误
+#define SP_EX_CTRL_CONNECT 									(27)               //外部控制连接中
+//#define SP_Hardware_Error 								(28)               //硬件中断错误
+//#define SP_Restore_default_OK								(29)               //恢复默认成功
+//#define SP_EEPROM_Error 									(30)               //未检出到EEPROM
+//#define SP_PT2315_Error 									(31)               //音频通道不正常
+//#define SP_FPGA_Error 									(32)               //FPGA启动异常						
+//#define SP_W5100_Error 									(33)               //5100启动异常						
+//#define SP_PT2315_Error									(34)               //
+#define SP_SIGNING_IN 										(35)               //硬件签到进行中
+#define SP_VOTING 											(36)               //硬件表决进行中
+#define SP_FIRE_WARNING 									(37)               //消防警告
+#define SP_BATTERY_ERR 										(38)               //电池没装好
+#define SP_TRIAL_EXPIRED									(39)               //试用期已到		
+#define SP_USB_INIT											(40)               //U盘初始化
+#define SP_UNIT_TYPE										(41)               //机器类型
+
+/* 屏幕变量寄存器 Screen variable  register */
+#define SVR_WIFI_OL_TOTAL_NUM										(0x0001)			//无线话筒在线总数
+#define SVR_WIFI_OL_CHM_NUM											(0x0002)			//
+#define SVR_WIFI_OL_RPS_NUM											(0x0003)
+
+#define SVR_CONF_MODE												(0x0005)
+#define SVR_SET_MIC_MODE											(0x0012)
+#define SVR_SET_MIC_NUM												(0x0014)
+
+#define SVR_START_ID												(0x0022)
+
+#define SVR_WIRED_OL_TOTAL_NUM										(0x0034)
+#define SVR_WIRED_OL_CHM_NUM										(0x0035)
+#define SVR_WIRED_OL_RPS_NUM										(0x0036)
+#define SVR_INTERP_OL_NUM											(0x0037)
+#define SVR_BRIGHTNESS												(0x0044)
+
+#define SVR_IP_ADDR													(0x0048)
+#define SVR_GATEWAY_ADDR											(0x0058)
+#define SVR_NETMASK_ADDR											(0x0068)
+#define SVR_PORT													(0x0078)
+
+#define SVR_SOFTWARE_VERSION_M										(0x0039)
+#define SVR_SOFTWARE_VERSION_S										(0x0080)
+
+#define SVR_LINEOUT1_VOL											(0x0092)
+#define SVR_LINEOUT2_VOL											(0x0094)
+
+#define SVR_AUD_PLAY_NAME											(0x03A0)
+#define SVR_AUD_REC_ICO												(0x0505)
+#define SVR_AUD_REC_TIME											(0x06A0)
+
 
 /* 屏幕通讯类型 */
 typedef enum {
